@@ -1,0 +1,25 @@
+# Development-only Compose stack.
+# For this stage it contains Keycloak only; PostgreSQL and FastAPI will be
+# added in a later stage without touching the existing database schema.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: sql-ai-keycloak
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      # Development bootstrap admin. Values come from the .env file.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      # Realm definition imported automatically on first start.
+      - ./identity/keycloak/sql-ai-realm.json:/opt/keycloak/data/import/sql-ai-realm.json:ro
+      # Keeps users/settings between restarts (dev H2 database).
+      - keycloak_data:/opt/keycloak/data/h2
+
+volumes:
+  keycloak_data:
