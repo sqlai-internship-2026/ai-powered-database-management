@@ -1,6 +1,6 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
-import { mockDepartments } from '../data/mockDepartments'
+import { useApiData } from '../utils/api'
 import { formatNumber } from '../utils/format'
 
 const columns = [
@@ -15,13 +15,20 @@ const columns = [
 ]
 
 export default function Departments() {
+  const { data: departments, loading, error } = useApiData('/api/departments', [])
+
   return (
     <>
       <PageHeader
         title="Departments"
-        description="Organizational units. Mock data for now."
+        description="Organizational units and their headcount."
       />
-      <DataTable columns={columns} rows={mockDepartments} />
+      <DataTable
+        columns={columns}
+        rows={departments}
+        loading={loading}
+        error={error}
+      />
     </>
   )
 }

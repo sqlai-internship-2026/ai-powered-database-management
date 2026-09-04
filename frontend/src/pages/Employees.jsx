@@ -1,6 +1,6 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
-import { mockEmployees } from '../data/mockEmployees'
+import { useApiData } from '../utils/api'
 
 const columns = [
   { key: 'id', header: 'ID' },
@@ -12,13 +12,17 @@ const columns = [
 ]
 
 export default function Employees() {
+  const { data: employees, loading, error } = useApiData('/api/employees', [])
+
   return (
     <>
-      <PageHeader
-        title="Employees"
-        description="Employee directory. Mock data for now."
+      <PageHeader title="Employees" description="Employee directory." />
+      <DataTable
+        columns={columns}
+        rows={employees}
+        loading={loading}
+        error={error}
       />
-      <DataTable columns={columns} rows={mockEmployees} />
     </>
   )
 }

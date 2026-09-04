@@ -2,8 +2,7 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
-import { dashboardStats } from '../data/dashboardStats'
-import { mockProjects } from '../data/mockProjects'
+import { useApiData } from '../utils/api'
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -26,41 +25,51 @@ const recentProjectColumns = [
 ]
 
 export default function Dashboard() {
-  const recentProjects = [...mockProjects]
-    .sort((a, b) => b.start_date.localeCompare(a.start_date))
+  const { data: stats, error: statsError } = useApiData('/api/dashboard')
+  const {
+    data: projects,
+    loading: projectsLoading,
+    error: projectsError,
+  } = useApiData('/api/projects', [])
+
+  // Newest programs first; a missing start date sorts to the bottom.
+  const recentProjects = [...projects]
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''))
     .slice(0, 5)
 
   return (
     <>
       <PageHeader
         title="Dashboard"
-        description="Company-wide overview. All figures shown are temporary mock data."
+        description="Company-wide overview, read live from the database."
       />
 
-      <div className="notice">
-        This environment is not connected to the database yet. Values come from
-        local mock data and will be replaced by REST API responses.
-      </div>
+      {statsError && <div className="notice">Could not load summary: {statsError}</div>}
 
       <div className="stat-grid">
-        <StatCard label="Total Projects" value={formatNumber(dashboardStats.total_projects)} />
+        <StatCard label="Total Projects" value={formatNumber(stats?.total_projects)} />
         <StatCard
           label="Active Projects"
-          value={formatNumber(dashboardStats.active_projects)}
+          value={formatNumber(stats?.active_projects)}
           hint="Currently in execution"
         />
-        <StatCard label="Total Employees" value={formatNumber(dashboardStats.total_employees)} />
-        <StatCard label="Total Departments" value={formatNumber(dashboardStats.total_departments)} />
-        <StatCard label="Total Products" value={formatNumber(dashboardStats.total_products)} />
+        <StatCard label="Total Employees" value={formatNumber(stats?.total_employees)} />
+        <StatCard label="Total Departments" value={formatNumber(stats?.total_departments)} />
+        <StatCard label="Total Products" value={formatNumber(stats?.total_products)} />
         <StatCard
           label="Total Investments"
-          value={formatCompactCurrency(dashboardStats.total_investment_amount)}
+          value={formatCompactCurrency(stats?.total_investment_amount)}
           hint="Sum of recorded investments"
         />
       </div>
 
       <PageHeader title="Latest Projects" />
-      <DataTable columns={recentProjectColumns} rows={recentProjects} />
+      <DataTable
+        columns={recentProjectColumns}
+        rows={recentProjects}
+        loading={projectsLoading}
+        error={projectsError}
+      />
     </>
   )
 }

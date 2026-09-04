@@ -1,6 +1,6 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
-import { mockInvestments } from '../data/mockInvestments'
+import { useApiData } from '../utils/api'
 import { formatCurrency } from '../utils/format'
 
 const columns = [
@@ -16,13 +16,20 @@ const columns = [
 ]
 
 export default function Investments() {
+  const { data: investments, loading, error } = useApiData('/api/investments', [])
+
   return (
     <>
       <PageHeader
         title="Investments"
-        description="Investments recorded against projects. Mock data for now."
+        description="Investments recorded against projects."
       />
-      <DataTable columns={columns} rows={mockInvestments} />
+      <DataTable
+        columns={columns}
+        rows={investments}
+        loading={loading}
+        error={error}
+      />
     </>
   )
 }

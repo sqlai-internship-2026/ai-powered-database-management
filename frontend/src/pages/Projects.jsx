@@ -1,7 +1,7 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
-import { mockProjects } from '../data/mockProjects'
+import { useApiData } from '../utils/api'
 import { formatCurrency } from '../utils/format'
 
 const columns = [
@@ -22,13 +22,20 @@ const columns = [
 ]
 
 export default function Projects() {
+  const { data: projects, loading, error } = useApiData('/api/projects', [])
+
   return (
     <>
       <PageHeader
         title="Projects"
-        description="Active and completed programs. Mock data for now."
+        description="Active and completed programs."
       />
-      <DataTable columns={columns} rows={mockProjects} />
+      <DataTable
+        columns={columns}
+        rows={projects}
+        loading={loading}
+        error={error}
+      />
     </>
   )
 }

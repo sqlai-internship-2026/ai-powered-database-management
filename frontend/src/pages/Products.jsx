@@ -1,6 +1,6 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
-import { mockProducts } from '../data/mockProducts'
+import { useApiData } from '../utils/api'
 import { formatCurrency } from '../utils/format'
 
 const columns = [
@@ -16,13 +16,20 @@ const columns = [
 ]
 
 export default function Products() {
+  const { data: products, loading, error } = useApiData('/api/products', [])
+
   return (
     <>
       <PageHeader
         title="Products"
-        description="Product and subsystem catalog. Mock data for now."
+        description="Product and subsystem catalog."
       />
-      <DataTable columns={columns} rows={mockProducts} />
+      <DataTable
+        columns={columns}
+        rows={products}
+        loading={loading}
+        error={error}
+      />
     </>
   )
 }

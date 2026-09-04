@@ -5,14 +5,11 @@ Internal management dashboard for a fictional defense industry company.
 Current stage:
 
 ```text
-User -> Keycloak Login -> React Frontend -> Mock Data
+User -> Keycloak Login -> React Frontend -> FastAPI REST API -> PostgreSQL
 ```
 
-The next stage will replace the mock data with real data:
-
-```text
-React Frontend -> FastAPI REST API -> PostgreSQL
-```
+Every list page and the dashboard summary are read live from the database.
+There is no mock data left in the frontend.
 
 ## Repository structure
 
@@ -22,21 +19,24 @@ React Frontend -> FastAPI REST API -> PostgreSQL
 │   └── src/
 │       ├── auth/             Keycloak provider and route guard
 │       ├── components/       Layout, sidebar, table, cards
-│       ├── data/             Temporary mock datasets
 │       ├── pages/            One component per route
-│       └── utils/            Formatting helpers
-├── backend/                  Reserved for the future FastAPI service (empty)
+│       └── utils/            REST client and formatting helpers
+├── backend/                  FastAPI service (read-only REST API)
+│   ├── main.py               Endpoints
+│   ├── db.py                 PostgreSQL connection settings
+│   └── labels.py             Turkish -> English display labels
 ├── database/
-│   └── migrations/           PostgreSQL schema (not used by the frontend yet)
+│   ├── migrations/           PostgreSQL schema and seed data
+│   └── run_seeds.ps1         Applies the seed migrations in one transaction
 ├── identity/
-│   └── keycloak/             Keycloak realm export imported on container start
-├── docker-compose.yml        Development Keycloak service
+│   └── keycloak/             Keycloak realm export
 └── .env.example              Template for the local .env file
 ```
 
 ## Prerequisites
 
-- Docker Desktop (or Docker Engine with the Compose plugin)
+- PostgreSQL 16 or newer, installed locally (the project does not use Docker)
+- Python 3.11 or newer
 - Node.js 18 or newer
 
 ## 1. Configure environment files
@@ -46,28 +46,40 @@ cp .env.example .env
 cp frontend/.env.example frontend/.env
 ```
 
-Real `.env` files are git-ignored. Only the `.env.example` templates are committed.
+Set at least `PGDATABASE`, `PGUSER` and `PGPASSWORD` in `.env` - the backend
+reads that file on startup. Real `.env` files are git-ignored; only the
+`.env.example` templates are committed.
 
-## 2. Start Keycloak
+## 2. Prepare the database
 
-```bash
-docker compose up -d
+Create the database once, apply the schema, then the seed data:
+
+```powershell
+createdb -U postgres savunma_db
+psql -U postgres -d savunma_db -f database\migrations\001_initial_schema.sql
+powershell -ExecutionPolicy Bypass -File database\run_seeds.ps1
 ```
 
-The container starts in development mode and automatically imports
-`identity/keycloak/sql-ai-realm.json` on first launch (`--import-realm`),
-so the `sql-ai` realm and the `frontend` client already exist. The import only
-runs when the realm is not present yet; later changes made in the admin console
-are kept in the `keycloak_data` volume.
+`run_seeds.ps1` runs every seed file inside a single transaction and prints the
+row counts at the end, so a failure leaves the tables exactly as they were.
 
-Check the status and logs with:
+## 3. Start the backend
 
-```bash
-docker compose ps
-docker compose logs -f keycloak
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install -r backend\requirements.txt
+.venv\Scripts\python -m uvicorn main:app --reload --app-dir backend --port 8000
 ```
 
-## 3. Start the frontend
+Quick check - it must report `"database": "connected"`:
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+Interactive API documentation is served at http://localhost:8000/docs.
+
+## 4. Start the frontend
 
 ```bash
 cd frontend
@@ -75,13 +87,52 @@ npm install
 npm run dev
 ```
 
+## API endpoints
+
+All endpoints are read-only GETs and return JSON.
+
+| Endpoint           | Returns                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| `/api/health`      | Service and database status                                  |
+| `/api/dashboard`   | Summary counters and totals for the dashboard cards          |
+| `/api/departments` | Departments with a derived `employee_count`                  |
+| `/api/employees`   | Employees joined with their department name                  |
+| `/api/projects`    | Projects with budget and status                              |
+| `/api/products`    | Product and subsystem catalog                                |
+| `/api/investments` | Investments joined with their project name                   |
+
+Numeric and date columns are cast in SQL, so the payload contains plain numbers
+and ISO `YYYY-MM-DD` date strings.
+
+The junction tables `project_employees` and `project_products` have no endpoint,
+menu entry or page on purpose; they will be used inside project detail screens.
+
+## Data language
+
+The tables are seeded with Turkish text while the dashboard is English-only, so
+the API translates stored values through the map in `backend/labels.py` on the
+way out. The database is never modified. Values that are missing from the map
+are returned unchanged, which means **new rows added to the database show up in
+their original language until their text is added to `labels.py`**.
+
+Person names are data, not labels, and are never translated.
+
 ## URLs
 
 | Service               | URL                                            |
 | --------------------- | ---------------------------------------------- |
 | Frontend              | http://localhost:5173                          |
+| Backend API           | http://localhost:8000                          |
+| API documentation     | http://localhost:8000/docs                     |
 | Keycloak Admin Console| http://localhost:8080/admin                    |
 | Realm login page      | http://localhost:8080/realms/sql-ai/account    |
+
+## Keycloak
+
+> The Keycloak instance used to run through `docker compose`. Docker has been
+> dropped from the project, so start Keycloak with your local installation
+> (`bin\kc.bat start-dev`) and import `identity/keycloak/sql-ai-realm.json`
+> once. The realm settings below are unchanged.
 
 Keycloak settings used by the frontend:
 
@@ -90,38 +141,19 @@ Keycloak settings used by the frontend:
 - Valid redirect URI: `http://localhost:5173/*`
 - Web origin: `http://localhost:5173`
 
-The Keycloak admin user comes from `.env` (`KEYCLOAK_ADMIN` /
-`KEYCLOAK_ADMIN_PASSWORD`, defaults `admin` / `admin` for local development
-only).
-
-## 4. Create a test user
-
 The realm export deliberately contains no user accounts, so no password is
-stored in the repository. Create one after the first start:
+stored in the repository. Create a test user after the first start:
 
-1. Open http://localhost:8080/admin and sign in with the admin credentials
-   from your `.env` file.
+1. Open http://localhost:8080/admin and sign in as the Keycloak admin.
 2. Switch the realm selector (top left) from `Keycloak` to **sql-ai**.
 3. Go to **Users** -> **Add user**.
    - Username: `testuser`
-   - Email: `testuser@example.com` (optional)
    - Email verified: On (optional, avoids the verification screen)
    - Click **Create**.
 4. Open the **Credentials** tab -> **Set password**.
    - Choose any password, set **Temporary** to **Off**, then **Save**.
 
-The same thing from the command line, inside the running container:
-
-```bash
-docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 --realm master --user admin
-docker compose exec keycloak /opt/keycloak/bin/kcadm.sh create users \
-  -r sql-ai -s username=testuser -s enabled=true
-docker compose exec keycloak /opt/keycloak/bin/kcadm.sh set-password \
-  -r sql-ai --username testuser --new-password "<your-password>"
-```
-
-## 5. Log in
+## Log in
 
 1. Open http://localhost:5173.
 2. The application has no local login form - it redirects straight to the
@@ -129,48 +161,15 @@ docker compose exec keycloak /opt/keycloak/bin/kcadm.sh set-password \
 3. Sign in with the test user.
 4. Keycloak redirects back to the frontend and the Dashboard is shown.
 5. The signed-in username appears in the top bar, next to the **Log out**
-   button. Logging out ends the Keycloak session and returns you to the login
-   flow.
+   button.
 
 All routes (`/dashboard`, `/projects`, `/employees`, `/departments`,
 `/products`, `/investments`, `/reports`) are protected and cannot be opened
 without an active Keycloak session.
 
-## 6. Stop the services
-
-```bash
-# Frontend: press Ctrl+C in the terminal running "npm run dev"
-
-# Keycloak
-docker compose down
-
-# Keycloak including users and realm changes
-docker compose down -v
-```
-
-## Mock data
-
-Every page reads from a module in `frontend/src/data/`:
-
-| File                  | Used by                                    |
-| --------------------- | ------------------------------------------ |
-| `mockProjects.js`     | Projects, Dashboard                        |
-| `mockEmployees.js`    | Employees                                  |
-| `mockDepartments.js`  | Departments, Dashboard                     |
-| `mockProducts.js`     | Products, Dashboard                        |
-| `mockInvestments.js`  | Investments, Dashboard                     |
-| `dashboardStats.js`   | Dashboard summary cards (derived)          |
-
-Property names follow the column names in
-`database/migrations/001_initial_schema.sql`, so each import can later be
-replaced by a REST call without touching the table components.
-
-The junction tables `project_employees` and `project_products` have no menu
-entry or page on purpose; they will be used inside project detail screens once
-the backend exists.
-
 ## Not implemented yet
 
-LDAP, the FastAPI backend, PostgreSQL integration, AI/LLM features,
-natural-language-to-SQL, the reporting engine, and backend token validation.
-Authentication currently happens only between React and Keycloak.
+LDAP, AI/LLM features, natural-language-to-SQL, the reporting engine, and
+backend token validation. The API is currently open on the development machine:
+authentication happens only between React and Keycloak, and the backend does
+not yet verify the access token.

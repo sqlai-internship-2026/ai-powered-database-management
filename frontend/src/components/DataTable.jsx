@@ -1,6 +1,20 @@
 // Minimal table renderer used by every list page.
 // columns: [{ key, header, render? }]
-export default function DataTable({ columns, rows, emptyMessage = 'No records found.' }) {
+export default function DataTable({
+  columns,
+  rows,
+  loading = false,
+  error = null,
+  emptyMessage = 'No records found.',
+}) {
+  if (loading) {
+    return <div className="card placeholder">Loading records...</div>
+  }
+
+  if (error) {
+    return <div className="card placeholder">Could not load data: {error}</div>
+  }
+
   if (!rows || rows.length === 0) {
     return <div className="card placeholder">{emptyMessage}</div>
   }
