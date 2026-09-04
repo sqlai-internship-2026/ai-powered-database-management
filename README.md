@@ -35,9 +35,10 @@ There is no mock data left in the frontend.
 
 ## Prerequisites
 
-- PostgreSQL 16 or newer, installed locally (the project does not use Docker)
+- PostgreSQL 16 or newer, installed locally
 - Python 3.11 or newer
 - Node.js 18 or newer
+- Keycloak, installed locally
 
 ## 1. Configure environment files
 
@@ -129,10 +130,13 @@ Person names are data, not labels, and are never translated.
 
 ## Keycloak
 
-> The Keycloak instance used to run through `docker compose`. Docker has been
-> dropped from the project, so start Keycloak with your local installation
-> (`bin\kc.bat start-dev`) and import `identity/keycloak/sql-ai-realm.json`
-> once. The realm settings below are unchanged.
+Start the local Keycloak installation in development mode and import the
+realm export once:
+
+```powershell
+bin\kc.bat import --file <repo>\identity\keycloak\sql-ai-realm.json
+bin\kc.bat start-dev
+```
 
 Keycloak settings used by the frontend:
 

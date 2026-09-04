@@ -26,5 +26,5 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Keycloak local data volume (if bind-mounted)
+# Local Keycloak data directory
 identity/keycloak/data/
