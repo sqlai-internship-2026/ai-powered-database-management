@@ -8,6 +8,7 @@ import Departments from './pages/Departments'
 import Products from './pages/Products'
 import Investments from './pages/Investments'
 import Reports from './pages/Reports'
+import SchemaAudit from './pages/SchemaAudit'
 import NotFound from './pages/NotFound'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/investments" element={<Investments />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/schema-audit" element={<SchemaAudit />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
