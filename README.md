@@ -177,3 +177,5 @@ LDAP, AI/LLM features, natural-language-to-SQL, the reporting engine, and
 backend token validation. The API is currently open on the development machine:
 authentication happens only between React and Keycloak, and the backend does
 not yet verify the access token.
+
+Workflow test
