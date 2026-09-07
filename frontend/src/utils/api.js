@@ -25,16 +25,48 @@ export function buildQuery(params) {
   return query ? `?${query}` : ''
 }
 
+// FastAPI answers a rejected body with detail as an array of field errors, and
+// everything else with detail as a sentence. Both end up as one readable line.
+function readDetail(body, status) {
+  if (typeof body?.detail === 'string') return body.detail
+  if (Array.isArray(body?.detail)) {
+    const messages = body.detail.map((entry) => entry.msg).filter(Boolean)
+    if (messages.length > 0) return messages.join('; ')
+  }
+  return `Request failed with status ${status}`
+}
+
 export async function apiGet(path) {
   const response = await fetch(`${API_URL}${path}`)
 
   if (!response.ok) {
     let detail = `Request failed with status ${response.status}`
     try {
-      const body = await response.json()
-      if (body?.detail) detail = body.detail
+      detail = readDetail(await response.json(), response.status)
     } catch {
       // Error responses are not always JSON; the status text is enough then.
+    }
+    throw new Error(detail)
+  }
+
+  return response.json()
+}
+
+// The one non-GET call in the application: /api/reports/ask sends a question
+// in the body. It still reads nothing but rows back.
+export async function apiPost(path, body) {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    let detail = `Request failed with status ${response.status}`
+    try {
+      detail = readDetail(await response.json(), response.status)
+    } catch {
+      // Same as above: a non-JSON error still has to reach the caller.
     }
     throw new Error(detail)
   }

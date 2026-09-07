@@ -1077,12 +1077,74 @@ td.meter-column,
 }
 
 /* ---------- Print ---------- */
+/* ---------- Ask ---------- */
+/*
+ * The question box is a single line on purpose: a question that needs a
+ * paragraph is a question this feature cannot answer yet.
+ */
+
+.ask-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.ask-form .field {
+  flex: 1;
+}
+
+.ask-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.ask-input:focus {
+  outline: 2px solid #cfdffb;
+  outline-offset: 0;
+  border-color: #9dbdf0;
+}
+
+.ask-examples {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.ask-examples .field-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* A refusal is not a system failure - the user asked something the feature
+   cannot answer - so it reads as a message rather than a red alarm. */
+.ask-error {
+  background: #fff6e8;
+  border-color: #f0d5ac;
+  color: #6b4a13;
+}
+
+@media (max-width: 820px) {
+  .ask-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,
   .report-toolbar-actions,
   .report-card-actions,
-  .report-tabs {
+  .report-tabs,
+  .ask-form,
+  .ask-examples,
+  .copy-button {
     display: none !important;
   }
 

@@ -11,6 +11,7 @@ import Reports from './pages/Reports'
 import FinancialReport from './pages/reports/FinancialReport'
 import WorkforceReport from './pages/reports/WorkforceReport'
 import PortfolioReport from './pages/reports/PortfolioReport'
+import AskReport from './pages/reports/AskReport'
 import SchemaAudit from './pages/SchemaAudit'
 import NotFound from './pages/NotFound'
 
@@ -30,6 +31,7 @@ export default function App() {
             <Route index element={<FinancialReport />} />
             <Route path="workforce" element={<WorkforceReport />} />
             <Route path="portfolio" element={<PortfolioReport />} />
+            <Route path="ask" element={<AskReport />} />
           </Route>
           <Route path="/schema-audit" element={<SchemaAudit />} />
           <Route path="*" element={<NotFound />} />

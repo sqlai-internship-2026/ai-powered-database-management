@@ -1,17 +1,18 @@
 """Read-only REST API over the management database.
 
-The dashboard only lists records for now, so every endpoint is a GET. Keycloak
-token validation is a later stage; on the development machine the endpoints are
-open. Numeric and date columns are cast in SQL so the JSON payload matches what
+Nothing here writes: every endpoint reads, and the one POST carries a question
+in its body rather than a change. Keycloak token validation is a later stage;
+on the development machine the endpoints are open. Numeric and date columns are cast in SQL so the JSON payload matches what
 the frontend already expects: plain numbers and ISO (YYYY-MM-DD) date strings.
 """
 
 import os
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from db import fetch_all, fetch_one
 from reports import (
@@ -20,6 +21,13 @@ from reports import (
     portfolio_report,
     workforce_report,
 )
+from reports.ask import (
+    GENERATOR,
+    NoSQLReturned,
+    answer_question,
+    stub_questions,
+)
+from reports.sql_guard import UnsafeQuery
 from schema_audit.engine import rule_catalog, run_audit
 
 app = FastAPI(title="SQL-AI API", version="0.1.0")
@@ -32,7 +40,9 @@ app.add_middleware(
         for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
         if origin.strip()
     ],
-    allow_methods=["GET"],
+    # POST is only used by /api/reports/ask, which sends a question in the
+    # body rather than in a query string.
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -218,3 +228,45 @@ def schema_audit():
 def schema_audit_rules():
     """The rule catalog, so the UI can explain what was checked."""
     return rule_catalog()
+
+
+# ---------------------------------------------------------------------------
+# Natural language reporting
+#
+# The question is generated into SQL, checked, and run as a role that holds
+# SELECT and nothing else. Three things can go wrong before any row is read -
+# no query was produced, the query was refused, the query did not run - and
+# each returns the sentence explaining which, because the user is looking at
+# their own question and needs to know whether to rephrase it.
+# ---------------------------------------------------------------------------
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=500)
+
+
+@app.get("/api/reports/ask/examples")
+def report_ask_examples():
+    """Questions the current generator can answer, plus which generator it is."""
+    return {"generator": GENERATOR, "questions": stub_questions()}
+
+
+@app.post("/api/reports/ask")
+def report_ask(request: AskRequest):
+    """Answers a typed question with the rows its generated SQL returns."""
+    try:
+        return answer_question(request.question)
+    except NoSQLReturned as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except UnsafeQuery as exc:
+        raise HTTPException(
+            status_code=422, detail=f"The generated query was refused. {exc}"
+        )
+    except psycopg.Error as exc:
+        # Caught here so it does not reach the handler above, which would call
+        # a perfectly healthy database unreachable.
+        first_line = str(exc).strip().splitlines()[0]
+        raise HTTPException(
+            status_code=422,
+            detail=f"The generated query did not run: {first_line}",
+        )

@@ -26,7 +26,11 @@ audit are read live from the database. There is no mock data in the frontend.
 ├── backend/                  FastAPI service (read-only REST API)
 │   ├── main.py               Endpoints
 │   ├── db.py                 PostgreSQL connection settings
-│   ├── reports/              Aggregation queries behind the reporting screens
+│   ├── reports/              Reporting queries, and the natural-language pipeline
+│   │   ├── ask.py            Question -> SQL -> rows (the model call is stubbed)
+│   │   ├── sql_guard.py      Accept-or-refuse gate for generated SQL
+│   │   ├── schema_context.py The schema description a model reads
+│   │   └── eval_cases.py     20 questions with hand-written reference SQL
 │   └── schema_audit/         Structural review of the live schema
 ├── database/
 │   ├── migrations/           PostgreSQL schema and seed data
@@ -105,7 +109,8 @@ npm run dev
 
 ## API endpoints
 
-All endpoints are read-only GETs and return JSON.
+Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`,
+which carries a question in its body rather than a change.
 
 | Endpoint                   | Returns                                              |
 | -------------------------- | ---------------------------------------------------- |
@@ -120,6 +125,8 @@ All endpoints are read-only GETs and return JSON.
 | `/api/reports/financial`   | Budget against committed investment, per program and year |
 | `/api/reports/workforce`   | Headcount, payroll, hiring history and allocation    |
 | `/api/reports/portfolio`   | Schedule position and hardware consumption           |
+| `/api/reports/ask`         | POST. A question in English, answered with rows       |
+| `/api/reports/ask/examples`| Questions the current generator can answer            |
 | `/api/schema-audit`        | Structural findings with suggested DDL per finding    |
 | `/api/schema-audit/rules`  | The audit rule catalog                               |
 
@@ -140,6 +147,10 @@ so the sidebar stays a list of subjects rather than a list of reports:
 | **Financial** | `/reports`           | Budget against committed investment, per program and per year, by investment type |
 | **Workforce** | `/reports/workforce` | Headcount and payroll per department, hiring history, per-person program load |
 | **Portfolio** | `/reports/portfolio` | Where each program sits in its schedule, and the hardware it consumes |
+| **Ask**       | `/reports/ask`       | A question typed in English, the SQL generated from it, and the rows it returns |
+
+The first three tabs share one filter row. **Ask** builds its own query from the
+question, so the filters do not apply to it.
 
 Filters (`year range`, `project status`, `department`) are passed to the API as
 query parameters, so the aggregation happens in SQL rather than in the browser.
@@ -160,6 +171,85 @@ Hardware cost is worth reading carefully: it is
 `project_products.quantity × products.unit_cost`, which is material cost only.
 It lands between roughly 2% and 22% of a program budget, because a budget also
 covers labour, test infrastructure and certification.
+
+## Natural language questions (Ask)
+
+The `Ask` tab takes a question typed in English and answers it with rows. Four
+steps, in `backend/reports/`:
+
+| Step | File | What it does |
+| ---- | ---- | ------------ |
+| 1 | `schema_context.py` | Describes the live schema - tables, columns, how they join, and the actual values in short text columns such as `status` - as the text a model reads before writing SQL |
+| 2 | `ask.py` -> `generate_sql()` | Question + schema -> SQL. **Stubbed**: returns canned answers, no model is called |
+| 3 | `sql_guard.py` | Accepts or refuses the SQL. Only a single SELECT or WITH; writes, second statements and file-reading functions are named and rejected; a missing `LIMIT` is added |
+| 4 | `db.readonly_cursor()` | Runs it as a role holding `SELECT` and nothing else, with `statement_timeout` set |
+
+Steps 3 and 4 are deliberately independent. The guard runs in Python and can be
+argued with in principle; the role is enforced by PostgreSQL and cannot. Neither
+is enough alone - text filtering over SQL has been defeated many times, and a
+privilege check has no opinion about a query that returns every row of a table.
+
+The generated SQL is shown above the result on screen. The query is the only
+way for a reader to judge whether the answer means what they asked, so hiding it
+would turn a checkable number into a claim.
+
+### Why the model is stubbed
+
+Everything except step 2 works without one, and those are the parts that take
+the time: pulling SQL out of a reply that wraps it in prose and markdown,
+refusing writes, converting `Decimal` and `date` for JSON, an empty result, a
+truncated result, and the sentence a user sees when their question cannot be
+answered. Replacing the stub changes one function:
+
+```python
+def generate_sql(question, context):
+    response = ollama.chat(model="qwen2.5-coder:7b", messages=[
+        {"role": "system", "content": PROMPT.format(schema=context)},
+        {"role": "user", "content": question},
+    ])
+    return response["message"]["content"]
+```
+
+Try the pipeline from a terminal, without the frontend:
+
+```powershell
+.venv\Scripts\python.exe backend\reports\ask.py "Which projects are on hold?"
+```
+
+### The evaluation set
+
+`backend/reports/eval_cases.py` holds 20 questions with SQL written by hand,
+from single-table counts to two-hop joins through the link tables, anti-joins
+and `HAVING`. It answers the question a model cannot answer about itself: is
+this good enough to ship?
+
+Grading compares **result sets, not SQL text** - `COUNT(*)`, `COUNT(id)` and
+`COUNT(*) AS total` are all correct answers to the same question. Both queries
+are executed and the rows compared, ignoring row order. An answer with the right
+values in a different column order is reported separately as `PASS*`.
+
+```powershell
+.venv\Scripts\python.exe backend\reports\run_eval.py                    # harness self-test, must be 20/20
+.venv\Scripts\python.exe backend\reports\run_eval.py --generator ask     # scores the current generator
+.venv\Scripts\python.exe backend\reports\run_eval.py --only top_earners -v
+```
+
+The reference query is re-run at grading time rather than compared against a
+stored answer, so the set stays correct when the seed data changes and a
+question like "projects past their end date" stays correct on any day.
+
+Writing the set is also how the feature got a definition. The questions say what
+"it works" means, and each one is precise enough to have a single defensible
+reading - ambiguity in a question shows up as a false failure in the report.
+
+## Tests
+
+```powershell
+.venv\Scripts\python.exe -m pytest backend/reports -q
+```
+
+45 tests, no database and no model: the SQL guard and the extraction of SQL from
+a model reply are pure functions, which is why they were written that way.
 
 ## Schema audit
 
@@ -259,8 +349,9 @@ and `/schema-audit`.
 - **Backend token validation.** The API is open on the development machine:
   authentication happens only between React and Keycloak, and the backend does
   not verify the access token.
-- **AI and LLM features**, including natural-language-to-SQL. The reporting
-  screens are a fixed set of queries, not a query builder and not generated.
+- **The language model behind Ask.** Everything around it is built and tested;
+  `generate_sql()` in `backend/reports/ask.py` returns canned answers instead of
+  calling a model. See the section above.
 - **LDAP** as an identity source.
 - **Write operations.** Every endpoint is a GET; records are created and edited
   directly in the database.
