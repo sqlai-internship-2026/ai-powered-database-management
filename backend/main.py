@@ -14,6 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from db import fetch_all, fetch_one
+from reports import (
+    filter_options,
+    financial_report,
+    portfolio_report,
+    workforce_report,
+)
 from schema_audit.engine import rule_catalog, run_audit
 
 app = FastAPI(title="SQL-AI API", version="0.1.0")
@@ -152,6 +158,50 @@ def dashboard():
         """
     )
     return totals
+
+
+def _status_list(status):
+    """Turns the repeatable ?status= query parameter into a clean list.
+
+    FastAPI hands over None when the parameter is absent, which the report
+    functions read as "no status filter".
+    """
+    if not status:
+        return None
+    values = [value.strip() for value in status.split(",") if value.strip()]
+    return values or None
+
+
+@app.get("/api/reports/filters")
+def report_filters():
+    """Statuses, the investment year range and departments, from live data."""
+    return filter_options()
+
+
+@app.get("/api/reports/financial")
+def report_financial(
+    year_from: int | None = None,
+    year_to: int | None = None,
+    status: str | None = None,
+):
+    """Budget against committed investment, per project and per year."""
+    return financial_report(
+        year_from=year_from,
+        year_to=year_to,
+        statuses=_status_list(status),
+    )
+
+
+@app.get("/api/reports/workforce")
+def report_workforce(department_id: int | None = None):
+    """Headcount, payroll and program allocation."""
+    return workforce_report(department_id=department_id)
+
+
+@app.get("/api/reports/portfolio")
+def report_portfolio(status: str | None = None):
+    """Schedule position and hardware consumption per program."""
+    return portfolio_report(statuses=_status_list(status))
 
 
 @app.get("/api/schema-audit")

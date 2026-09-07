@@ -590,3 +590,529 @@ tbody tr:hover td {
     margin: 8px 0 0 12px;
   }
 }
+
+/* ---------- Reports ---------- */
+/*
+ * Chart palette. One series colour for every bar and column: length already
+ * carries the magnitude, so hue stays free to mean state instead. The three
+ * meter states were validated for colour-vision separation and for at least
+ * 3:1 contrast against the white card surface, and each one is always printed
+ * with its value, so colour never carries the meaning alone.
+ */
+:root {
+  --chart-series: #2f6fed;
+  --chart-warning: #c2820a;
+  --chart-critical: #d03b3b;
+  --chart-track: #eef1f5;
+  --chart-grid: #e9edf2;
+  --plot-height: 220px;
+}
+
+.report-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 18px;
+}
+
+.report-tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.report-tab:hover {
+  color: var(--color-text);
+}
+
+.report-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* One filter row, scoping every card below it. */
+.report-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.report-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.field-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-separator {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+select {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.report-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.report-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Hold the previous render while a filtered request is in flight - no skeleton
+   flash, no layout jump. */
+.report-body.is-refetching {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.report-card {
+  padding: 0;
+}
+
+.report-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.report-card-description {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  max-width: 62ch;
+}
+
+.report-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.report-card-body {
+  padding: 18px;
+}
+
+.report-card-body .table-wrapper {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.chart-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+  padding: 20px 0;
+}
+
+.align-right {
+  text-align: right;
+}
+
+/* Digits that stack vertically get equal widths; the large stat-card values
+   deliberately keep proportional figures. */
+td.align-right,
+td.meter-column,
+.bar-value,
+.meter-value,
+.column-axis-tick,
+.column-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Horizontal bars ---------- */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bar-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(110px, 200px) 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.bar-label {
+  font-size: 12px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  height: 10px;
+  background: var(--chart-track);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 2px;
+  background: var(--chart-series);
+  border-radius: 0 4px 4px 0;
+}
+
+.bar-row.active .bar-fill {
+  filter: brightness(0.9);
+}
+
+.bar-value {
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  min-width: 88px;
+}
+
+/* Kept out of the flow, so hovering never reflows the chart. */
+.bar-hint {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  display: none;
+  background: var(--color-navy);
+  color: #ffffff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.bar-row.active .bar-hint {
+  display: block;
+}
+
+/* ---------- Columns over time ---------- */
+.column-chart {
+  display: flex;
+  gap: 12px;
+}
+
+.column-axis {
+  position: relative;
+  flex: 0 0 76px;
+  height: var(--plot-height);
+}
+
+.column-axis-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.column-plot-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.column-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: var(--plot-height);
+}
+
+.column-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--chart-grid);
+}
+
+.column-slot {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.column-slot:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.column-bar {
+  width: 100%;
+  max-width: 46px;
+  min-height: 2px;
+  background: var(--chart-series);
+  border-radius: 4px 4px 0 0;
+}
+
+.column-slot.active .column-bar {
+  filter: brightness(0.9);
+}
+
+.column-point-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.column-tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--color-navy);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(18, 35, 59, 0.18);
+}
+
+.column-tooltip .muted {
+  color: #b9c6da;
+}
+
+.column-labels {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.column-label {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Meter (bullet) ---------- */
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meter-track {
+  position: relative;
+  flex: 0 0 110px;
+  height: 8px;
+  background: var(--chart-track);
+  border-radius: 4px;
+}
+
+.meter-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+}
+
+.meter-normal {
+  background: var(--chart-series);
+}
+
+.meter-warning {
+  background: var(--chart-warning);
+}
+
+.meter-critical {
+  background: var(--chart-critical);
+}
+
+.meter-unknown {
+  background: var(--color-border);
+}
+
+/* Marks the part that ran past the reference, which the track cannot show. */
+.meter-overflow {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--chart-critical);
+}
+
+.meter-value {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 44px;
+}
+
+.meter-note {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.meter-note-critical {
+  color: var(--chart-critical);
+}
+
+.meter-note-warning {
+  color: var(--chart-warning);
+}
+
+.meter-column {
+  min-width: 250px;
+}
+
+@media (max-width: 820px) {
+  .report-toolbar {
+    align-items: stretch;
+  }
+
+  .report-filters {
+    gap: 14px;
+  }
+
+  .bar-row {
+    grid-template-columns: minmax(90px, 130px) 1fr auto;
+  }
+
+  .column-axis {
+    flex-basis: 58px;
+  }
+}
+
+/* ---------- Print ---------- */
+@media print {
+  .sidebar,
+  .topbar,
+  .report-toolbar-actions,
+  .report-card-actions,
+  .report-tabs {
+    display: none !important;
+  }
+
+  .layout,
+  .main,
+  .content {
+    display: block;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .card,
+  .report-card,
+  .table-wrapper {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .report-body.is-refetching {
+    opacity: 1;
+  }
+}
+
+/* The topmost row has no room above it, so its hint drops below instead. */
+.bar-row:first-child .bar-hint {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
