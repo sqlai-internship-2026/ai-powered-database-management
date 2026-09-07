@@ -14,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from db import fetch_all, fetch_one
-from labels import ACTIVE_STATUS, to_english, translate_rows
 from schema_audit.engine import rule_catalog, run_audit
 
 app = FastAPI(title="SQL-AI API", version="0.1.0")
@@ -63,7 +62,7 @@ def list_departments():
         ORDER BY d.id
         """
     )
-    return translate_rows(rows, ["name", "description"])
+    return rows
 
 
 @app.get("/api/employees")
@@ -84,7 +83,7 @@ def list_employees():
         ORDER BY e.id
         """
     )
-    return translate_rows(rows, ["job_title", "department_name"])
+    return rows
 
 
 @app.get("/api/projects")
@@ -102,7 +101,7 @@ def list_projects():
         ORDER BY id
         """
     )
-    return translate_rows(rows, ["name", "description", "status"])
+    return rows
 
 
 @app.get("/api/products")
@@ -118,7 +117,7 @@ def list_products():
         ORDER BY id
         """
     )
-    return translate_rows(rows, ["name", "category", "description"])
+    return rows
 
 
 @app.get("/api/investments")
@@ -136,7 +135,7 @@ def list_investments():
         ORDER BY i.id
         """
     )
-    return translate_rows(rows, ["project_name", "investment_type"])
+    return rows
 
 
 @app.get("/api/dashboard")
@@ -148,18 +147,9 @@ def dashboard():
                (SELECT COUNT(*) FROM departments)::int AS total_departments,
                (SELECT COUNT(*) FROM products)::int    AS total_products,
                (SELECT COALESCE(SUM(amount), 0) FROM investments)::float8 AS total_investment_amount,
-               (SELECT COALESCE(SUM(budget), 0) FROM projects)::float8    AS total_project_budget
+               (SELECT COALESCE(SUM(budget), 0) FROM projects)::float8    AS total_project_budget,
+               (SELECT COUNT(*) FROM projects WHERE status = 'Active')::int AS active_projects
         """
-    )
-    # Statuses are stored in Turkish, so they are normalised before counting
-    # instead of comparing against a hard-coded value inside the SQL.
-    status_counts = fetch_all(
-        "SELECT status, COUNT(*)::int AS count FROM projects GROUP BY status"
-    )
-    totals["active_projects"] = sum(
-        row["count"]
-        for row in status_counts
-        if to_english(row["status"]) == ACTIVE_STATUS
     )
     return totals
 
