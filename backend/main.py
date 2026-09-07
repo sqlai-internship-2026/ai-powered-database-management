@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 
 from db import fetch_all, fetch_one
 from labels import ACTIVE_STATUS, to_english, translate_rows
+from schema_audit.engine import rule_catalog, run_audit
 
 app = FastAPI(title="SQL-AI API", version="0.1.0")
 
@@ -161,3 +162,19 @@ def dashboard():
         if to_english(row["status"]) == ACTIVE_STATUS
     )
     return totals
+
+
+@app.get("/api/schema-audit")
+def schema_audit():
+    """Structural review of the live schema, with suggested DDL per finding.
+
+    Read-only: the audit reads pg_catalog and returns statements as text. It
+    never runs them - applying a suggestion stays a human decision.
+    """
+    return run_audit()
+
+
+@app.get("/api/schema-audit/rules")
+def schema_audit_rules():
+    """The rule catalog, so the UI can explain what was checked."""
+    return rule_catalog()

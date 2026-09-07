@@ -10,6 +10,7 @@ const navigationItems = [
   { to: '/products', label: 'Products' },
   { to: '/investments', label: 'Investments' },
   { to: '/reports', label: 'Reports' },
+  { to: '/schema-audit', label: 'Schema Audit' },
 ]
 
 export default function Sidebar() {
