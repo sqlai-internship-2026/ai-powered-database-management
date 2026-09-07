@@ -9,6 +9,9 @@ const tabs = [
   { to: '/reports', end: true, label: 'Financial', uses: ['years', 'status'] },
   { to: '/reports/workforce', label: 'Workforce', uses: ['department'] },
   { to: '/reports/portfolio', label: 'Portfolio', uses: ['status'] },
+  // Ask builds its own query from the question, so the filter row above
+  // does not apply to it.
+  { to: '/reports/ask', label: 'Ask', uses: [] },
 ]
 
 const emptyFilters = {
