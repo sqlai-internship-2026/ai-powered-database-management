@@ -7,6 +7,24 @@ const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replac
   ''
 )
 
+// Turns a filter object into a query string, dropping anything the user has
+// not set so an unfiltered request stays a bare path (and keeps the useApiData
+// cache key stable).
+export function buildQuery(params) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return
+    if (Array.isArray(value)) {
+      if (value.length === 0) return
+      search.set(key, value.join(','))
+      return
+    }
+    search.set(key, String(value))
+  })
+  const query = search.toString()
+  return query ? `?${query}` : ''
+}
+
 export async function apiGet(path) {
   const response = await fetch(`${API_URL}${path}`)
 
