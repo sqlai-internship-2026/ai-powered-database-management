@@ -110,13 +110,23 @@ menu entry or page on purpose; they will be used inside project detail screens.
 
 ## Data language
 
-The tables are seeded with Turkish text while the dashboard is English-only, so
-the API translates stored values through the map in `backend/labels.py` on the
-way out. The database is never modified. Values that are missing from the map
-are returned unchanged, which means **new rows added to the database show up in
-their original language until their text is added to `labels.py`**.
+The application is English end to end. The seed data is written in English and
+the API serves stored values exactly as they are - there is no translation
+layer.
 
-Person names are data, not labels, and are never translated.
+It used to work differently: the tables were seeded in Turkish and
+`backend/labels.py` mapped every stored value to English on the way out. That
+file is gone. The map had to be edited by hand whenever a row was added, a
+missing entry failed silently, and translating a department name is no more
+correct than translating a person's name - the data itself is now English
+instead.
+
+One consequence is worth knowing. `projects.status` holds display text, so the
+value is matched literally in two places: the active-project count in
+`backend/main.py` and the colour map in
+`frontend/src/components/StatusBadge.jsx`. Storing a language-neutral code
+(`ACTIVE` / `COMPLETED` / `PLANNING`, guarded by a CHECK constraint) would
+remove both literals and let the UI decide how to label them.
 
 ## URLs
 

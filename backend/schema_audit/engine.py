@@ -3,10 +3,6 @@
 Adding a rule means writing a pure function in rules.py and adding one line to
 RULES below. The registry doubles as the catalog served to the UI, so a rule
 can never appear in the report without being documented.
-
-Rule ids, severities and category keys stay English because they are values the
-API and the UI match on; the name and description are display text and follow
-the findings into Turkish.
 """
 
 from dataclasses import asdict, dataclass
@@ -31,96 +27,94 @@ class Rule:
 RULES: tuple[Rule, ...] = (
     Rule(
         id="R001",
-        name="Birincil anahtar yok",
-        description="Her tablonun tek bir satırı adresleyebilecek bir anahtarı olmalı.",
+        name="Missing primary key",
+        description="Every table needs a way to address a single row.",
         severity=ERROR,
-        category="bütünlük",
+        category="integrity",
         check=rules.missing_primary_key,
     ),
     Rule(
         id="R002",
-        name="Tanımsız ON DELETE davranışı",
+        name="Undefined ON DELETE behaviour",
         description=(
-            "NO ACTION'a düşen bir foreign key, silmeyi reddetmenin bilinçli "
-            "bir karar olup olmadığını söylemez."
+            "A foreign key left on NO ACTION does not say whether refusing the "
+            "delete was intended."
         ),
         severity=WARNING,
-        category="referans davranışı",
+        category="referential actions",
         check=rules.undefined_on_delete,
     ),
     Rule(
         id="R003",
-        name="Tanımsız ON UPDATE davranışı",
+        name="Undefined ON UPDATE behaviour",
         description=(
-            "Güncelleme için aynı soru. Anahtarlar otomatik üretilip hiç "
-            "değiştirilmediği sürece zararsızdır."
+            "Same question for updates. Harmless while keys are generated and "
+            "never edited."
         ),
         severity=INFO,
-        category="referans davranışı",
+        category="referential actions",
         check=rules.undefined_on_update,
     ),
     Rule(
         id="R004",
-        name="İlişkisiz tablo",
-        description="Hiçbir yönde foreign key uğramayan tablo.",
+        name="Isolated table",
+        description="A table no foreign key reaches, in either direction.",
         severity=INFO,
-        category="yapı",
+        category="structure",
         check=rules.isolated_table,
     ),
     Rule(
         id="R005",
-        name="Döngüsel foreign key zinciri",
-        description="Hiçbir satırın ilk sırada eklenemediği tablo döngüsü.",
+        name="Circular foreign key chain",
+        description="A loop of tables where no row can be inserted first.",
         severity=ERROR,
-        category="yapı",
+        category="structure",
         check=rules.circular_foreign_keys,
     ),
     Rule(
         id="R006",
-        name="Yinelenen veya gereksiz index",
+        name="Duplicate or redundant index",
         description=(
-            "Aynı kolonlar üzerinde iki index, ya da bir başkasının baştan alt "
-            "kümesi olan index."
+            "Two indexes on the same columns, or one that is a leading subset "
+            "of another."
         ),
         severity=WARNING,
-        category="indeksleme",
+        category="indexing",
         check=rules.redundant_index,
     ),
     Rule(
         id="R007",
-        name="Foreign key tip uyuşmazlığı",
+        name="Foreign key type mismatch",
         description=(
-            "Referans verdiği anahtardan farklı tipte tanımlanmış foreign key "
-            "kolonu."
+            "A foreign key column declared differently from the key it "
+            "references."
         ),
         severity=ERROR,
-        category="bütünlük",
+        category="integrity",
         check=rules.foreign_key_type_mismatch,
     ),
     Rule(
         id="R008",
-        name="İndekslenmemiş foreign key",
-        description=(
-            "Alt tarafta, foreign key kolonlarıyla başlayan bir index bulunmuyor."
-        ),
+        name="Unindexed foreign key",
+        description="No index starts with the foreign key columns on the child side.",
         severity=WARNING,
-        category="indeksleme",
+        category="indexing",
         check=rules.unindexed_foreign_key,
     ),
     Rule(
         id="R009",
-        name="Foreign key ile korunmayan örtük ilişki",
-        description="Referans gibi adlandırılmış ama hiçbir şeyin zorlamadığı kolon.",
+        name="Implied relationship without a foreign key",
+        description="A column named like a reference that nothing enforces.",
         severity=WARNING,
-        category="bütünlük",
+        category="integrity",
         check=rules.implied_foreign_key,
     ),
     Rule(
         id="R010",
-        name="Ortak kolon adı için tutarsız tip",
-        description="Aynı kolon adının tablolar arasında farklı tiplerle tanımlanması.",
+        name="Inconsistent type for a shared column name",
+        description="The same column name declared with different types across tables.",
         severity=INFO,
-        category="tutarlılık",
+        category="consistency",
         check=rules.inconsistent_column_type,
     ),
 )
