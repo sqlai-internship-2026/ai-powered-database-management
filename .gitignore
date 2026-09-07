@@ -28,3 +28,8 @@ Thumbs.db
 
 # Local Keycloak data directory
 identity/keycloak/data/
+
+# Local-only files (personal notes, database dumps)
+START.txt
+*.sql.bak
+yedek.sql
