@@ -25,6 +25,7 @@ audit are read live from the database. There is no mock data in the frontend.
 │       └── utils/            REST client, formatting and CSV helpers
 ├── backend/                  FastAPI service (read-only REST API)
 │   ├── main.py               Endpoints
+│   ├── auth.py               Keycloak access token validation
 │   ├── db.py                 PostgreSQL connection settings
 │   ├── reports/              Reporting queries, and the natural-language pipeline
 │   │   ├── ask.py            Question -> SQL -> rows (the model call is stubbed)
@@ -97,6 +98,11 @@ Quick check - it must report `"database": "connected"`:
 curl http://localhost:8000/api/health
 ```
 
+`/api/health` is the only endpoint that answers without a token; every other
+one replies `401` until the request carries a Keycloak access token, so Keycloak
+has to be running before the frontend can load a page. See
+[Backend token validation](#backend-token-validation).
+
 Interactive API documentation is served at http://localhost:8000/docs.
 
 ## 4. Start the frontend
@@ -110,7 +116,8 @@ npm run dev
 ## API endpoints
 
 Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`,
-which carries a question in its body rather than a change.
+which carries a question in its body rather than a change. All of them require
+an `Authorization: Bearer <access token>` header except `/api/health`.
 
 | Endpoint                   | Returns                                              |
 | -------------------------- | ---------------------------------------------------- |
@@ -245,11 +252,13 @@ reading - ambiguity in a question shows up as a false failure in the report.
 ## Tests
 
 ```powershell
-.venv\Scripts\python.exe -m pytest backend/reports -q
+.venv\Scripts\python.exe -m pytest backend -q
 ```
 
-45 tests, no database and no model: the SQL guard and the extraction of SQL from
-a model reply are pure functions, which is why they were written that way.
+57 tests, no database, no model and no Keycloak: the SQL guard, the extraction
+of SQL from a model reply and the token claim rules are pure functions, which is
+why they were written that way. The last two check the route table itself, so an
+endpoint added without the token check fails the suite.
 
 ## Schema audit
 
@@ -344,11 +353,39 @@ session: `/dashboard`, `/projects`, `/employees`, `/departments`, `/products`,
 `/investments`, `/reports` (plus `/reports/workforce` and `/reports/portfolio`)
 and `/schema-audit`.
 
+## Backend token validation
+
+The login above proves who the person at the browser is. It says nothing about
+the request that reaches the API, so the backend validates the access token
+itself - a route guard in React is a convenience, not a control, because anyone
+can call the API directly.
+
+`frontend/src/utils/api.js` attaches the token to every call and refreshes it
+when it is within 30 seconds of expiry. `backend/auth.py` verifies it and every
+endpoint except `/api/health` depends on that check:
+
+- **Signature**, against the realm's published keys, pinned to `RS256`. The keys
+  are fetched from the realm JWKS endpoint once and cached, so validation is
+  offline and costs no round trip per request.
+- **Issuer and expiry**, plus the presence of `exp`, `iat`, `iss` and `sub`.
+- **`azp`**, which has to name the `frontend` client. The audience of a token
+  issued to a public client is `account`, so it cannot tell one client in the
+  realm from another; `azp` can.
+- **The `app_user` realm role.** Accounts created in the `sql-ai` realm receive
+  it automatically. If a token is rejected with a message about the missing
+  role, assign it under **Users** -> the account -> **Role mapping**.
+
+The three outcomes are distinct on purpose: `401` for a missing, expired or
+invalid token, `403` for a valid token whose account is not allowed, and `503`
+when Keycloak itself cannot be reached - a client that retried with a fresh
+token would fail the same way, so blaming the token there would be misleading.
+
+Configuration lives in `.env` (`KEYCLOAK_URL`, `KEYCLOAK_REALM`,
+`KEYCLOAK_CLIENT_ID`, `KEYCLOAK_REQUIRED_ROLE`) and has to match the `VITE_`
+values the frontend uses.
+
 ## Not implemented yet
 
-- **Backend token validation.** The API is open on the development machine:
-  authentication happens only between React and Keycloak, and the backend does
-  not verify the access token.
 - **The language model behind Ask.** Everything around it is built and tested;
   `generate_sql()` in `backend/reports/ask.py` returns canned answers instead of
   calling a model. See the section above.

@@ -5,6 +5,9 @@ fastapi>=0.115
 uvicorn[standard]>=0.34
 psycopg[binary]>=3.2
 python-dotenv>=1.0
+# Validates the Keycloak access token. The crypto extra brings the RSA support
+# that verifying an RS256 signature needs.
+pyjwt[crypto]>=2.9
 
 # Tests (sql_guard is pure Python and covered by unit tests)
 pytest>=8.0
