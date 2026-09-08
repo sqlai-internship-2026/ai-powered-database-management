@@ -262,9 +262,28 @@ def report_ask(request: AskRequest):
         raise HTTPException(
             status_code=422, detail=f"The generated query was refused. {exc}"
         )
+    except psycopg.errors.QueryCanceled:
+        # statement_timeout on the read-only role fired. The query was valid;
+        # it was too expensive, and the fix is a narrower question.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The generated query took longer than the 5 second limit and "
+                "was stopped. Try narrowing the question."
+            ),
+        )
+    except psycopg.OperationalError:
+        # The database itself is unreachable. Left to the handler above, which
+        # answers 503 - blaming the user's question here would send them to
+        # rewrite a question that was never the problem.
+        #
+        # This branch has to sit below QueryCanceled, which is a subclass of
+        # OperationalError and would otherwise be swallowed by it.
+        raise
     except psycopg.Error as exc:
-        # Caught here so it does not reach the handler above, which would call
-        # a perfectly healthy database unreachable.
+        # A syntax error or an unknown column: the database is healthy and the
+        # generated query is not. Caught here so it does not reach the handler
+        # above, which would call a working database unreachable.
         first_line = str(exc).strip().splitlines()[0]
         raise HTTPException(
             status_code=422,
