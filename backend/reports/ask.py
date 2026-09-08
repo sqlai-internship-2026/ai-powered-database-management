@@ -13,8 +13,9 @@ and nothing else - no model is called, no key is needed, no GPU is involved.
 That is deliberate: everything around the model (extracting SQL from prose,
 refusing writes, serialising Decimal and date, an empty result, a truncated
 result, the error text a user sees) can be built and tested without one, and
-those are the parts that take the time. Replacing the stub with a real call -
-Ollama locally, or the Claude API - changes this one function and nothing else.
+those are the parts that take the time. Replacing the stub with a real call - a
+local model through Ollama, or a hosted one - changes this function and nothing
+else.
 
 The stub answers a few of the questions in eval_cases.py correctly, one in a
 different column order, and one wrongly, so `run_eval.py --generator ask` prints
