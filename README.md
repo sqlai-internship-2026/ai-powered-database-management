@@ -31,7 +31,8 @@ audit are read live from the database. There is no mock data in the frontend.
 │   │   ├── ask.py            Question -> SQL -> rows (the model call is stubbed)
 │   │   ├── sql_guard.py      Accept-or-refuse gate for generated SQL
 │   │   ├── schema_context.py The schema description a model reads
-│   │   └── eval_cases.py     20 questions with hand-written reference SQL
+│   │   ├── eval_cases.py     20 questions with hand-written reference SQL
+│   │   └── check_model.py    Is the hosted model reachable and answering?
 │   └── schema_audit/         Structural review of the live schema
 ├── database/
 │   ├── migrations/           PostgreSQL schema and seed data
@@ -206,16 +207,100 @@ Everything except step 2 works without one, and those are the parts that take
 the time: pulling SQL out of a reply that wraps it in prose and markdown,
 refusing writes, converting `Decimal` and `date` for JSON, an empty result, a
 truncated result, and the sentence a user sees when their question cannot be
-answered. Replacing the stub changes one function:
+answered. Replacing the stub changes one function.
+
+### Where the model runs
+
+Not on this machine. The first plan was to install and serve a model locally;
+the project uses NVIDIA's free developer endpoint instead, so there is nothing
+to download, no GPU to size and no extra service to keep running next to
+PostgreSQL and Keycloak.
+
+The endpoint is **OpenAI-compatible**, which is why the switch is cheap: a POST
+to `/chat/completions` carrying a `Bearer` key, so no client package is added.
+Three settings in `.env` describe it - `NVIDIA_API_KEY`, `NVIDIA_MODEL` and
+`NVIDIA_BASE_URL`. The key is personal and that file is git-ignored.
+
+Replacing the stub then looks roughly like:
 
 ```python
 def generate_sql(question, context):
-    response = ollama.chat(model="qwen2.5-coder:7b", messages=[
-        {"role": "system", "content": PROMPT.format(schema=context)},
-        {"role": "user", "content": question},
-    ])
-    return response["message"]["content"]
+    reply = post(f"{BASE_URL}/chat/completions", key=API_KEY, json={
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": PROMPT.format(schema=context)},
+            {"role": "user", "content": question},
+        ],
+        "temperature": 0,
+    })
+    return reply["choices"][0]["message"]["content"]
 ```
+
+### Checking the model on its own
+
+`backend/reports/check_model.py` calls the endpoint directly - no database, no
+API, no Keycloak, no SQL - so a model problem can be told apart from an Ask
+problem. It answers one question, in three ordered steps that each name their
+own cause on failure: the endpoint is **reachable**, the key is **authorised**
+for that model, and a reply actually **comes back**. It sends a plain greeting
+and prints the answer, the token counts and the latency.
+
+It says nothing about the quality of what the model writes. Whether the model
+can turn a question into correct SQL is measured separately, by `run_eval.py`
+against `eval_cases.py`, once `generate_sql()` calls a model at all.
+
+```powershell
+.venv\Scripts\python.exe backend\reports\check_model.py --list-models   # which ids exist
+.venv\Scripts\python.exe backend\reports\check_model.py                 # one request
+.venv\Scripts\python.exe backend\reports\check_model.py --prompt "..."  # send your own message
+.venv\Scripts\python.exe backend\reports\check_model.py --chat          # a conversation
+.venv\Scripts\python.exe backend\reports\check_model.py --stream        # time to first token
+```
+
+`--chat` is the one to use to get a feel for the model: type a message, read the
+reply, keep going, and end it with a blank line or Ctrl+C. It is worth doing
+before writing the prompt Ask will send, because it shows how the model words a
+refusal, whether it wraps SQL in markdown, and how long an answer takes.
+
+The endpoint holds no session, so the whole conversation is resent on every
+turn - the prompt grows as you go, and each message counts against the rate
+limit below. Temperature defaults to `0` so a check repeats itself; pass
+`--temperature 0.7` when exploring.
+
+Start with `--list-models`. The name shown on a model's web page is not always
+the id the API accepts, and a wrong id comes back as a `404` that reads like an
+outage.
+
+The file is deliberately not named `test_*.py`, so pytest does not collect it:
+the backend suite runs without a network, a key or a model, and a check that
+needs all three does not belong in it.
+
+### When the endpoint says no
+
+Two statuses mean "busy, nothing wrong with your request", and both are common
+on the free tier: `429 Too Many Requests` and `503 Service temporarily
+overloaded`. `--chat` retries them by itself after 3, 8 and 20 seconds rather
+than making you retype the message.
+
+A `429` is easy to misread as a spent quota. It usually is not. The flagship
+models are the ones that refuse: asking `moonshotai/kimi-k3` was rejected in
+under a second, over and over for half a minute, while
+`nvidia/nemotron-3-super-120b-a12b` answered in **0.7s**, `openai/gpt-oss-20b`
+in 22s and `mistralai/mistral-nemotron` in 40s - **on the same key, in the same
+minute**. A personal quota would have stopped all four. So the limit belongs to
+that model's shared free capacity, not to the account.
+
+The endpoint sends no `Retry-After` and no quota headers at all, so there is
+nothing to read for a remaining count - the responses carry only `Connection`,
+`Content-Length`, `Content-Type`, `Date` and `Vary`. The practical move when a
+model keeps refusing is to pass `--model` and use one that answers.
+
+A model id can also be listed by `/models` and still not serve chat: on the same
+run `moonshotai/kimi-k2.6` returned `404` and `meta/llama-3.1-8b-instruct`
+returned `410 Gone`. Being listed is not the same as being available.
+
+Ask will have to handle all of this when it starts calling the model for real,
+which is a reason to keep the wait-and-retry behaviour in one place.
 
 Try the pipeline from a terminal, without the frontend:
 
@@ -388,7 +473,9 @@ values the frontend uses.
 
 - **The language model behind Ask.** Everything around it is built and tested;
   `generate_sql()` in `backend/reports/ask.py` returns canned answers instead of
-  calling a model. See the section above.
+  calling a model. Where it will run is settled - NVIDIA's hosted endpoint, not
+  a local install - and `check_model.py` verifies that endpoint already, but
+  nothing in the request path calls it yet. See the section above.
 - **LDAP** as an identity source.
 - **Write operations.** Every endpoint is a GET; records are created and edited
   directly in the database.

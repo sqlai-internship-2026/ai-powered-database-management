@@ -13,9 +13,14 @@ and nothing else - no model is called, no key is needed, no GPU is involved.
 That is deliberate: everything around the model (extracting SQL from prose,
 refusing writes, serialising Decimal and date, an empty result, a truncated
 result, the error text a user sees) can be built and tested without one, and
-those are the parts that take the time. Replacing the stub with a real call - a
-local model through Ollama, or a hosted one - changes this function and nothing
-else.
+those are the parts that take the time. Replacing the stub with a real call
+changes this function and nothing else.
+
+The model it will call is hosted on NVIDIA's free developer endpoint rather than
+installed locally, so no GPU and no extra service are involved. That endpoint is
+OpenAI-compatible and is configured by NVIDIA_API_KEY, NVIDIA_MODEL and
+NVIDIA_BASE_URL in .env. check_model.py in this package calls it on its own, so
+whether the model is reachable can be answered without going through Ask.
 
 The stub answers a few of the questions in eval_cases.py correctly, one in a
 different column order, and one wrongly, so `run_eval.py --generator ask` prints
@@ -201,11 +206,15 @@ def generate_sql(question: str, context: str) -> str:
 
     Replacing it looks roughly like:
 
-        response = ollama.chat(model="qwen2.5-coder:7b", messages=[
-            {"role": "system", "content": PROMPT.format(schema=context)},
-            {"role": "user", "content": question},
-        ])
-        return response["message"]["content"]
+        reply = post(f"{BASE_URL}/chat/completions", key=API_KEY, json={
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": PROMPT.format(schema=context)},
+                {"role": "user", "content": question},
+            ],
+            "temperature": 0,
+        })
+        return reply["choices"][0]["message"]["content"]
     """
     asked = question.lower()
 
