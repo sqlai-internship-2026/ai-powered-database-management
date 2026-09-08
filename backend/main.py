@@ -1,19 +1,23 @@
 """Read-only REST API over the management database.
 
 Nothing here writes: every endpoint reads, and the one POST carries a question
-in its body rather than a change. Keycloak token validation is a later stage;
-on the development machine the endpoints are open. Numeric and date columns are cast in SQL so the JSON payload matches what
-the frontend already expects: plain numbers and ISO (YYYY-MM-DD) date strings.
+in its body rather than a change. Reading still takes a signed-in account -
+every route below sits on a router that validates the Keycloak access token
+first (see auth.py), with /api/health as the one deliberate exception.
+
+Numeric and date columns are cast in SQL so the JSON payload matches what the
+frontend already expects: plain numbers and ISO (YYYY-MM-DD) date strings.
 """
 
 import os
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from auth import require_user
 from db import fetch_all, fetch_one
 from reports import (
     filter_options,
@@ -43,8 +47,15 @@ app.add_middleware(
     # POST is only used by /api/reports/ask, which sends a question in the
     # body rather than in a query string.
     allow_methods=["GET", "POST"],
+    # "*" covers Authorization as well, which every call now carries.
     allow_headers=["*"],
 )
+
+# Everything that reads a row hangs off this router, so the token check is
+# declared once instead of on fourteen endpoints. /api/health stays on the app
+# itself: it answers whether the service and the database are up, which is the
+# first thing to check when signing in is what is failing.
+api = APIRouter(dependencies=[Depends(require_user)])
 
 
 async def database_error(request, exc):
@@ -64,7 +75,7 @@ def health():
     return {"status": "ok", "database": "connected"}
 
 
-@app.get("/api/departments")
+@api.get("/api/departments")
 def list_departments():
     rows = fetch_all(
         """
@@ -81,7 +92,7 @@ def list_departments():
     return rows
 
 
-@app.get("/api/employees")
+@api.get("/api/employees")
 def list_employees():
     rows = fetch_all(
         """
@@ -102,7 +113,7 @@ def list_employees():
     return rows
 
 
-@app.get("/api/projects")
+@api.get("/api/projects")
 def list_projects():
     rows = fetch_all(
         """
@@ -120,7 +131,7 @@ def list_projects():
     return rows
 
 
-@app.get("/api/products")
+@api.get("/api/products")
 def list_products():
     rows = fetch_all(
         """
@@ -136,7 +147,7 @@ def list_products():
     return rows
 
 
-@app.get("/api/investments")
+@api.get("/api/investments")
 def list_investments():
     rows = fetch_all(
         """
@@ -154,7 +165,7 @@ def list_investments():
     return rows
 
 
-@app.get("/api/dashboard")
+@api.get("/api/dashboard")
 def dashboard():
     totals = fetch_one(
         """
@@ -182,13 +193,13 @@ def _status_list(status):
     return values or None
 
 
-@app.get("/api/reports/filters")
+@api.get("/api/reports/filters")
 def report_filters():
     """Statuses, the investment year range and departments, from live data."""
     return filter_options()
 
 
-@app.get("/api/reports/financial")
+@api.get("/api/reports/financial")
 def report_financial(
     year_from: int | None = None,
     year_to: int | None = None,
@@ -202,19 +213,19 @@ def report_financial(
     )
 
 
-@app.get("/api/reports/workforce")
+@api.get("/api/reports/workforce")
 def report_workforce(department_id: int | None = None):
     """Headcount, payroll and program allocation."""
     return workforce_report(department_id=department_id)
 
 
-@app.get("/api/reports/portfolio")
+@api.get("/api/reports/portfolio")
 def report_portfolio(status: str | None = None):
     """Schedule position and hardware consumption per program."""
     return portfolio_report(statuses=_status_list(status))
 
 
-@app.get("/api/schema-audit")
+@api.get("/api/schema-audit")
 def schema_audit():
     """Structural review of the live schema, with suggested DDL per finding.
 
@@ -224,7 +235,7 @@ def schema_audit():
     return run_audit()
 
 
-@app.get("/api/schema-audit/rules")
+@api.get("/api/schema-audit/rules")
 def schema_audit_rules():
     """The rule catalog, so the UI can explain what was checked."""
     return rule_catalog()
@@ -245,13 +256,13 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)
 
 
-@app.get("/api/reports/ask/examples")
+@api.get("/api/reports/ask/examples")
 def report_ask_examples():
     """Questions the current generator can answer, plus which generator it is."""
     return {"generator": GENERATOR, "questions": stub_questions()}
 
 
-@app.post("/api/reports/ask")
+@api.post("/api/reports/ask")
 def report_ask(request: AskRequest):
     """Answers a typed question with the rows its generated SQL returns."""
     try:
@@ -289,3 +300,7 @@ def report_ask(request: AskRequest):
             status_code=422,
             detail=f"The generated query did not run: {first_line}",
         )
+
+
+# Registered last, so every route defined above is part of the router.
+app.include_router(api)
