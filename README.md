@@ -18,17 +18,19 @@ audit are read live from the database. There is no mock data in the frontend.
 ├── frontend/                 React + Vite single page application
 │   └── src/
 │       ├── auth/             Keycloak provider and route guard
-│       ├── components/       Layout, sidebar, table, cards
+│       ├── components/       Layout, sidebar, table, cards, the assistant
 │       │   └── charts/       Bar, column and bullet-meter marks (no chart library)
 │       ├── pages/            One component per route
-│       │   └── reports/      The three reporting tabs
+│       │   └── reports/      The four reporting tabs
 │       └── utils/            REST client, formatting and CSV helpers
 ├── backend/                  FastAPI service (read-only REST API)
 │   ├── main.py               Endpoints
 │   ├── auth.py               Keycloak access token validation
 │   ├── db.py                 PostgreSQL connection settings
+│   ├── llm/                  The one place that calls a language model
+│   │   └── client.py         Key, retries, and a named error per failure
 │   ├── reports/              Reporting queries, and the natural-language pipeline
-│   │   ├── ask.py            Question -> SQL -> rows (the model call is stubbed)
+│   │   ├── ask.py            Question -> SQL -> rows -> a sentence about them
 │   │   ├── sql_guard.py      Accept-or-refuse gate for generated SQL
 │   │   ├── schema_context.py The schema description a model reads
 │   │   ├── eval_cases.py     20 questions with hand-written reference SQL
@@ -134,7 +136,7 @@ an `Authorization: Bearer <access token>` header except `/api/health`.
 | `/api/reports/workforce`   | Headcount, payroll, hiring history and allocation    |
 | `/api/reports/portfolio`   | Schedule position and hardware consumption           |
 | `/api/reports/ask`         | POST. A question in English, answered with rows       |
-| `/api/reports/ask/examples`| Questions the current generator can answer            |
+| `/api/reports/ask/examples`| Example questions, and the model that will answer them|
 | `/api/schema-audit`        | Structural findings with suggested DDL per finding    |
 | `/api/schema-audit/rules`  | The audit rule catalog                               |
 
@@ -147,7 +149,7 @@ reporting endpoints, and will also be used inside project detail screens.
 
 ## Reports
 
-Reporting lives behind a single `Reports` menu entry and splits into three tabs,
+Reporting lives behind a single `Reports` menu entry and splits into four tabs,
 so the sidebar stays a list of subjects rather than a list of reports:
 
 | Tab           | Route                | Covers                                            |
@@ -159,6 +161,11 @@ so the sidebar stays a list of subjects rather than a list of reports:
 
 The first three tabs share one filter row. **Ask** builds its own query from the
 question, so the filters do not apply to it.
+
+The **assistant** at the bottom of the dashboard answers the same kind of
+question against the same endpoint. It has no menu entry and no route of its
+own: the figures at the top of that page are the questions somebody thought to
+ask in advance, and it is where the rest of them go.
 
 Filters (`year range`, `project status`, `department`) are passed to the API as
 query parameters, so the aggregation happens in SQL rather than in the browser.
@@ -180,34 +187,50 @@ Hardware cost is worth reading carefully: it is
 It lands between roughly 2% and 22% of a program budget, because a budget also
 covers labour, test infrastructure and certification.
 
-## Natural language questions (Ask)
+## Natural language questions
 
-The `Ask` tab takes a question typed in English and answers it with rows. Four
-steps, in `backend/reports/`:
+A question typed in English, answered with rows and a sentence describing them.
+Two screens use the same endpoint: the **assistant** at the bottom of the
+dashboard, which keeps the questions asked so far on screen, and the **Ask**
+report (`/reports/ask`), which answers one at a time next to a CSV button.
+
+Five steps, in `backend/`:
 
 | Step | File | What it does |
 | ---- | ---- | ------------ |
-| 1 | `schema_context.py` | Describes the live schema - tables, columns, how they join, and the actual values in short text columns such as `status` - as the text a model reads before writing SQL |
-| 2 | `ask.py` -> `generate_sql()` | Question + schema -> SQL. **Stubbed**: returns canned answers, no model is called |
-| 3 | `sql_guard.py` | Accepts or refuses the SQL. Only a single SELECT or WITH; writes, second statements and file-reading functions are named and rejected; a missing `LIMIT` is added |
+| 1 | `reports/schema_context.py` | Describes the live schema - tables, columns, how they join, and the actual values in short text columns such as `status` - as the text a model reads before writing SQL |
+| 2 | `reports/ask.py` -> `generate_sql()` | Question + schema -> SQL, through `llm/client.py` |
+| 3 | `reports/sql_guard.py` | Accepts or refuses the SQL. Only a single SELECT or WITH; writes, second statements and file-reading functions are named and rejected; a missing `LIMIT` is added |
 | 4 | `db.readonly_cursor()` | Runs it as a role holding `SELECT` and nothing else, with `statement_timeout` set |
+| 5 | `reports/ask.py` -> `summarize_rows()` | The rows that came back -> one to three sentences |
 
 Steps 3 and 4 are deliberately independent. The guard runs in Python and can be
 argued with in principle; the role is enforced by PostgreSQL and cannot. Neither
 is enough alone - text filtering over SQL has been defeated many times, and a
 privilege check has no opinion about a query that returns every row of a table.
+Together they are why letting a model write SQL against this database is safe:
+only step 2 trusts the model, and only for the text of a query.
 
-The generated SQL is shown above the result on screen. The query is the only
-way for a reader to judge whether the answer means what they asked, so hiding it
-would turn a checkable number into a claim.
+The generated SQL is on screen with every answer - shown by the Ask report,
+one click away in the assistant. The query is the only way for a reader to judge
+whether the answer means what they asked, so hiding it would turn a checkable
+number into a claim. The same reasoning puts the result table directly under the
+sentence: the sentence is written by a model and can be wrong in a way the rows
+cannot.
 
-### Why the model is stubbed
+### Two model calls, failing differently
 
-Everything except step 2 works without one, and those are the parts that take
-the time: pulling SQL out of a reply that wraps it in prose and markdown,
-refusing writes, converting `Decimal` and `date` for JSON, an empty result, a
-truncated result, and the sentence a user sees when their question cannot be
-answered. Replacing the stub changes one function.
+Writing the query and describing the result are separate requests, and they are
+not equally important. A query that cannot be written means there is no answer
+at all, and the endpoint says so. A summary that cannot be written costs the
+reader a sentence: `summarize_rows` returns nothing, the rows and the SQL are
+displayed as usual, and the screen says the summary is missing rather than
+inventing one.
+
+Two shortcuts keep the second call honest and cheap. An empty result is answered
+from a constant instead of a request - a model cannot say "no rows" better than
+that sentence does. A large result is capped at 50 rows, and the prompt is told
+how many rows exist, so a partial list is never described as the whole answer.
 
 ### Where the model runs
 
@@ -216,25 +239,49 @@ the project uses NVIDIA's free developer endpoint instead, so there is nothing
 to download, no GPU to size and no extra service to keep running next to
 PostgreSQL and Keycloak.
 
-The endpoint is **OpenAI-compatible**, which is why the switch is cheap: a POST
-to `/chat/completions` carrying a `Bearer` key, so no client package is added.
-Three settings in `.env` describe it - `NVIDIA_API_KEY`, `NVIDIA_MODEL` and
+The endpoint is **OpenAI-compatible**: a POST to `/chat/completions` carrying a
+`Bearer` key, which is small enough that no client package was added. Three
+settings in `.env` describe it - `NVIDIA_API_KEY`, `NVIDIA_MODEL` and
 `NVIDIA_BASE_URL`. The key is personal and that file is git-ignored.
 
-Replacing the stub then looks roughly like:
+`backend/llm/client.py` is the only code that makes the call. It reads the key,
+retries while the endpoint is busy, and raises a named exception for each way a
+call can fail, so the API layer never has to read an HTTP body:
 
-```python
-def generate_sql(question, context):
-    reply = post(f"{BASE_URL}/chat/completions", key=API_KEY, json={
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": PROMPT.format(schema=context)},
-            {"role": "user", "content": question},
-        ],
-        "temperature": 0,
-    })
-    return reply["choices"][0]["message"]["content"]
-```
+| Exception | What happened | Status the API returns |
+| --------- | ------------- | ---------------------- |
+| `LLMNotConfigured` | No key, a rejected key, or a model id the endpoint does not serve | 503 |
+| `LLMRateLimited` | Still busy after retrying at 3, 8 and 20 seconds | 429 |
+| `LLMTruncated` | The reply ran out of tokens mid-answer | 422 |
+| `LLMUnavailable` | Unreachable, timed out, or an unreadable reply | 503 |
+
+Two details about the model are worth knowing before changing the settings. It
+reasons before answering and keeps that working out in a separate field, which
+never reaches the SQL parser - but it is charged for and it is slow, so a
+question costs a few seconds and a token budget that has to cover the thinking
+as well as the answer. And the better known model names share a small free
+capacity pool: `kimi-k3` refused every request across half a minute on the same
+key that `nemotron-3-super-120b-a12b` answered in under a second.
+
+### What the prompt insists on
+
+Three rules in `SQL_PROMPT` exist because the model got these wrong without
+them, and each failure was silent rather than loud:
+
+- **`ILIKE` for a name the person typed.** With `=` it wrote
+  `name = 'Radar Signal'` for a project stored as "Radar Signal Processing
+  Upgrade": valid SQL, no error, no rows - which reads as an empty department
+  rather than as a typo.
+- **`LEFT JOIN` on a nullable column.** An inner join to `departments` silently
+  drops every employee whose `department_id` is null.
+- **One column per value.** It wrote `first_name || ' ' || last_name` as a
+  single column, which is fine to read and impossible to sort or format.
+
+A question the schema cannot answer is not forced into SQL. The model replies in
+plain English, `extract_sql` recognises that there is no query in it, and the
+person reads the model's own sentence - "the database does not contain a
+customers table" - rather than a parser complaining that their query starts with
+the word THE.
 
 ### Checking the model on its own
 
@@ -317,12 +364,30 @@ this good enough to ship?
 
 Grading compares **result sets, not SQL text** - `COUNT(*)`, `COUNT(id)` and
 `COUNT(*) AS total` are all correct answers to the same question. Both queries
-are executed and the rows compared, ignoring row order. An answer with the right
-values in a different column order is reported separately as `PASS*`.
+are executed and the rows compared, ignoring row order.
+
+How much presentation is allowed to differ is a real choice, and the marks are
+where it is made:
+
+| Mark | Means |
+| ---- | ----- |
+| `PASS` | Same rows, same columns |
+| `PASS*` | Same values, in a different column order |
+| `PASS+` | Every expected value is there, alongside columns nobody asked for - a query that selects the id next to the name has answered the question |
+| `FAIL` | A value is missing or wrong, the row count differs, the guard refused it, or it did not run |
+| `SKIP` | The model never answered - busy, unreachable, out of tokens. Left out of the score entirely rather than counted as wrong SQL |
+
+`SELECT *` does not slip through `PASS+`: the row count is checked first, so a
+query returning every row of a table fails before its columns are looked at.
+A run is only green when every case was answered and right - a skip is not a
+pass, or a rate-limited run would look like a clean one.
+
+Against the 20 questions the current model scores **20/20 usable, 13 of them
+exact**, in about two minutes.
 
 ```powershell
 .venv\Scripts\python.exe backend\reports\run_eval.py                    # harness self-test, must be 20/20
-.venv\Scripts\python.exe backend\reports\run_eval.py --generator ask     # scores the current generator
+.venv\Scripts\python.exe backend\reports\run_eval.py --generator ask     # scores the model: ~2 minutes, 20 requests
 .venv\Scripts\python.exe backend\reports\run_eval.py --only top_earners -v
 ```
 
@@ -340,10 +405,12 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-57 tests, no database, no model and no Keycloak: the SQL guard, the extraction
+67 tests, no database, no model and no Keycloak. The SQL guard, the extraction
 of SQL from a model reply and the token claim rules are pure functions, which is
-why they were written that way. The last two check the route table itself, so an
-endpoint added without the token check fails the suite.
+why they were written that way. The summarising step is tested with the model
+replaced: what matters there is when it is called, what it is shown and what
+happens when it fails, none of which needs a real one. Two tests check the route
+table itself, so an endpoint added without the token check fails the suite.
 
 ## Schema audit
 
@@ -471,11 +538,15 @@ values the frontend uses.
 
 ## Not implemented yet
 
-- **The language model behind Ask.** Everything around it is built and tested;
-  `generate_sql()` in `backend/reports/ask.py` returns canned answers instead of
-  calling a model. Where it will run is settled - NVIDIA's hosted endpoint, not
-  a local install - and `check_model.py` verifies that endpoint already, but
-  nothing in the request path calls it yet. See the section above.
+- **Follow-up questions.** The assistant answers each question on its own and
+  sends nothing of the conversation back, so "and their salaries?" does not
+  work. Multi-turn text-to-SQL is a substantially harder problem than the
+  single-question case that works today.
+- **Charts from a question.** The Ask tab returns a table; turning "investment
+  per year" into the chart it obviously wants is not built.
+- **Working without a network.** Both screens need the hosted endpoint. There
+  is no offline fallback, which is a deliberate choice and worth revisiting if
+  a demo has to run without internet.
 - **LDAP** as an identity source.
 - **Write operations.** Every endpoint is a GET; records are created and edited
   directly in the database.

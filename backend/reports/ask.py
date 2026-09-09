@@ -1,30 +1,30 @@
 """Turns a typed question into rows, through generated SQL.
 
-The pipeline is four steps and every one of them already existed except the
-second:
+The pipeline is five steps, and the model is only in the first and the last:
 
     build_schema_context()   what the database looks like
     generate_sql()           question + schema -> SQL          <- the model
     validate_select()        accept or refuse the SQL
     readonly_cursor()        run it as a role that can only read
+    summarize_rows()         rows -> a sentence or two          <- the model
 
-`generate_sql` is a stub. It returns canned answers for a handful of questions
-and nothing else - no model is called, no key is needed, no GPU is involved.
-That is deliberate: everything around the model (extracting SQL from prose,
-refusing writes, serialising Decimal and date, an empty result, a truncated
-result, the error text a user sees) can be built and tested without one, and
-those are the parts that take the time. Replacing the stub with a real call
-changes this function and nothing else.
+The two model calls fail differently and are treated differently. A query that
+cannot be written means there is no answer at all; a summary that cannot be
+written means the rows arrive without a sentence over them, which is a smaller
+loss than an empty screen.
 
-The model it will call is hosted on NVIDIA's free developer endpoint rather than
-installed locally, so no GPU and no extra service are involved. That endpoint is
-OpenAI-compatible and is configured by NVIDIA_API_KEY, NVIDIA_MODEL and
-NVIDIA_BASE_URL in .env. check_model.py in this package calls it on its own, so
-whether the model is reachable can be answered without going through Ask.
+The model is hosted on NVIDIA's free developer endpoint rather than installed
+locally, so no GPU and no extra service are involved. llm/client.py owns the
+call; this module owns the prompt and what to do with the reply.
 
-The stub answers a few of the questions in eval_cases.py correctly, one in a
-different column order, and one wrongly, so `run_eval.py --generator ask` prints
-a mixed report instead of a meaningless 100%.
+Only the second step trusts the model, and only for the text of a query. The
+two steps after it assume that text is hostile: the guard refuses anything but
+a single SELECT, and the role it then runs as cannot write even if the guard is
+wrong. That is why letting a model write SQL against this database is safe at
+all.
+
+check_model.py in this package calls the endpoint on its own - no database, no
+API - so "the model is down" and "Ask is broken" stay separate questions.
 """
 
 import re
@@ -39,16 +39,13 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from db import readonly_cursor  # noqa: E402
+from llm import client  # noqa: E402
 from reports.schema_context import build_schema_context  # noqa: E402
 from reports.sql_guard import UnsafeQuery, validate_select  # noqa: E402
 
 # Same cap the guard applies. Kept here too because the answer says whether the
 # result was cut off, and that needs the number.
 MAX_ROWS = 500
-
-# Which generator produced the SQL. Travels with the answer so the UI can say
-# "canned answer" instead of implying a model ran.
-GENERATOR = "stub"
 
 
 class NoSQLReturned(ValueError):
@@ -90,9 +87,19 @@ _LINE_START = re.compile(r"^[ \t]*(select|with)\b", re.IGNORECASE | re.MULTILINE
 # ("Sure! The query is: SELECT ..."). SELECT only: a CTE always starts a line.
 _INLINE_SELECT = re.compile(r"\bselect\b", re.IGNORECASE)
 
+# A reply with no SELECT in it is one of two very different things, and they
+# need opposite handling. This tells them apart: a statement that changes the
+# database is still SQL and belongs to the guard, which names it precisely
+# ("starts with DELETE"). Anything else is the model talking, and its own
+# sentence is a better message than any this module could invent.
+_WRITE_START = re.compile(
+    r"^(insert|update|delete|drop|alter|create|truncate|grant|revoke|merge|copy)\b",
+    re.IGNORECASE,
+)
+
 
 def extract_sql(text: str) -> str:
-    """The SQL inside a model reply.
+    """The SQL inside a model reply, or NoSQLReturned carrying the model's words.
 
     Models rarely answer with bare SQL. The common shape is a sentence, a
     fenced block, then another sentence:
@@ -108,9 +115,12 @@ def extract_sql(text: str) -> str:
     purpose: cutting at the first semicolon would also swallow a second
     statement, and refusing that is sql_guard's job, not this function's.
 
-    Text with no SQL at all is passed through rather than rejected here, so the
-    guard can name what it actually is ("starts with DELETE") instead of this
-    function reporting a vague absence.
+    When there is no SELECT anywhere, the reply is either a write statement -
+    passed through, because the guard describes it better - or the model
+    declining to answer. A refusal is re-raised with its own text, so someone
+    who asks about a table that does not exist reads "the database does not
+    contain a customers table" rather than a parser complaining that their
+    query starts with THE.
     """
     if not text or not text.strip():
         raise NoSQLReturned("The generator returned nothing.")
@@ -120,125 +130,158 @@ def extract_sql(text: str) -> str:
 
     start = _LINE_START.search(candidate) or _INLINE_SELECT.search(candidate)
     if start:
-        candidate = candidate[start.start() :]
+        candidate = candidate[start.start() :].strip()
+        if not candidate:
+            raise NoSQLReturned(
+                "The generator returned nothing that looks like a query."
+            )
+        return candidate
 
     candidate = candidate.strip()
-    if not candidate:
-        raise NoSQLReturned("The generator returned nothing that looks like a query.")
-    return candidate
+    if _WRITE_START.match(candidate):
+        return candidate
+    raise NoSQLReturned(candidate)
 
 
 # ---------------------------------------------------------------------------
-# The model call - stubbed
+# The model call
 # ---------------------------------------------------------------------------
 
-# Each entry: every keyword must appear in the lower-cased question. The reply
-# shapes vary on purpose - bare SQL, a fenced block, prose around the block -
-# because that variety is what extract_sql has to survive.
-_STUB_ANSWERS = [
-    (
-        # "are there" as well as "how many employees", or this entry would also
-        # swallow "how many employees were hired in 2023" and "how many
-        # employees work in each department".
-        ("how many employees", "are there"),
-        "SELECT COUNT(*) AS employee_count FROM employees",
-    ),
-    (
-        ("on hold",),
-        "```sql\nSELECT name FROM projects WHERE status = 'On Hold' ORDER BY name\n```",
-    ),
-    (
-        ("total budget",),
-        "Here is the query:\n\n```sql\nSELECT SUM(budget) AS total_budget\nFROM projects\n```\n\n"
-        "It returns a single row.",
-    ),
-    (
-        ("largest budget",),
-        "```sql\nSELECT name, budget FROM projects ORDER BY budget DESC LIMIT 1\n```",
-    ),
-    (
-        ("investment type",),
-        "SELECT investment_type, SUM(amount) AS total_amount\n"
-        "FROM investments\n"
-        "GROUP BY investment_type\n"
-        "ORDER BY total_amount DESC",
-    ),
-    (
-        ("not used in any project",),
-        "```sql\nSELECT pr.name\nFROM products pr\nWHERE NOT EXISTS (\n"
-        "    SELECT 1 FROM project_products pp WHERE pp.product_id = pr.id\n"
-        ")\nORDER BY pr.name\n```",
-    ),
-    (
-        # Right answer, columns in another order: shows up as PASS* in the eval.
-        ("five highest paid",),
-        "```sql\nSELECT d.name AS department, e.salary, e.first_name, e.last_name\n"
-        "FROM employees e\n"
-        "LEFT JOIN departments d ON d.id = e.department_id\n"
-        "ORDER BY e.salary DESC\nLIMIT 5\n```",
-    ),
-    (
-        # Wrong on purpose - reads 2022 - so a failing case appears in the report.
-        ("hired in 2023",),
-        "SELECT COUNT(*) AS hired FROM employees "
-        "WHERE EXTRACT(YEAR FROM hire_date) = 2022",
-    ),
-    (
-        # Not an eval case. Here to exercise the guard by hand.
-        ("delete",),
-        "DELETE FROM employees WHERE id = 1",
-    ),
-    (
-        # Not an eval case. A column that does not exist, to see the database
-        # error reach the user as a readable message.
-        ("job level",),
-        "SELECT job_level, COUNT(*) FROM employees GROUP BY job_level",
-    ),
-]
+# Every rule below was written against a refusal or a wrong query the model
+# actually produced, not against what a model might do in principle:
+#
+#   ILIKE      it wrote name = 'Radar Signal' for a project stored as "Radar
+#              Signal Processing Upgrade", which is valid SQL returning nothing
+#              - the worst kind of wrong answer, because it looks like an empty
+#              department rather than a typo.
+#   LEFT JOIN  it wrote an inner join to departments, which silently drops
+#              every employee whose department_id is null.
+#   no fence   it wraps SQL in ```sql when not told otherwise, and extract_sql
+#              should not have to be the only thing standing between the model
+#              and the guard.
+#
+# The last rule is the one that makes a refusal readable: a model told to
+# always answer will invent a customers table rather than admit there is none.
+SQL_PROMPT = """You write PostgreSQL SELECT queries against the database described below.
+
+{schema}
+Rules:
+- Answer with the query only: no explanation, no markdown fence, no comments.
+- Exactly one statement, and it must read. A WITH ... SELECT is fine. Never
+  write INSERT, UPDATE, DELETE, or anything else that changes the database.
+- When filtering on a name the person typed, match it with ILIKE and %
+  wildcards instead of =. They rarely type a stored name exactly.
+- Give each value its own column. Do not concatenate two columns into one,
+  even when the question names them together: a first name and a last name
+  stay two columns, so a caller can sort or format them.
+- Join through the link tables rather than selecting from them directly.
+- Use LEFT JOIN where the joining column may be null, so rows without a match
+  are not silently dropped.
+- Order the result whenever the question implies an order.
+- If the question cannot be answered from these tables, write no SQL at all.
+  Reply with one or two plain sentences saying what is missing.
+"""
 
 
 def generate_sql(question: str, context: str) -> str:
-    """Question and schema in, model reply out. Stubbed - see the module docstring.
+    """Question and schema in, whatever the model wrote out.
 
-    The real version sends `context` and `question` to a model and returns what
-    it says. `context` is ignored here, but it stays in the signature so
-    swapping the body changes nothing above this line.
+    Deliberately does no parsing and no judging. extract_sql takes the SQL out
+    of the reply and the guard decides whether to run it, so this function has
+    exactly one job and can be swapped for another provider without touching
+    either of them.
 
-    Replacing it looks roughly like:
-
-        reply = post(f"{BASE_URL}/chat/completions", key=API_KEY, json={
-            "model": MODEL,
-            "messages": [
-                {"role": "system", "content": PROMPT.format(schema=context)},
-                {"role": "user", "content": question},
-            ],
-            "temperature": 0,
-        })
-        return reply["choices"][0]["message"]["content"]
+    Raises client.LLMError subclasses, which the caller separates from a bad
+    answer: an unreachable endpoint is not the model being wrong.
     """
-    asked = question.lower()
-
-    for keywords, reply in _STUB_ANSWERS:
-        if all(keyword in asked for keyword in keywords):
-            return reply
-
-    raise NoSQLReturned(
-        "No language model is connected yet, and this question is not one of "
-        "the canned examples. Try one of the suggestions below the box."
-    )
+    return client.chat(SQL_PROMPT.format(schema=context), question)
 
 
-def stub_questions():
-    """The questions the stub can answer, for the UI to offer as examples."""
-    return [
-        "How many employees are there?",
-        "Which projects are on hold?",
-        "What is the total budget across all projects?",
-        "Which project has the largest budget?",
-        "Total investment amount per investment type, largest first.",
-        "Which products are not used in any project?",
-        "The five highest paid employees, with their department.",
-    ]
+# Offered under the question box so the first thing a visitor sees is a
+# question that works. Chosen to span the shapes the schema supports - a count,
+# a filter, a grouping, a ranking, a join through a link table, an absence -
+# rather than to be the easiest ones to answer.
+EXAMPLE_QUESTIONS = [
+    "How many employees are there?",
+    "Which projects are on hold?",
+    "Total investment amount per investment type, largest first.",
+    "The five highest paid employees, with their department.",
+    "Which employees work on the Tactical Radar System project, with their job title?",
+    "Which products are not used in any project?",
+    "How many employees does each department have?",
+]
+
+
+def example_questions():
+    """Questions to show as examples. A copy, so a caller cannot edit the list."""
+    return list(EXAMPLE_QUESTIONS)
+
+
+# ---------------------------------------------------------------------------
+# Saying what came back
+# ---------------------------------------------------------------------------
+
+# How many rows the summary is allowed to read. Beyond this it is describing a
+# table nobody is going to read row by row anyway, and the prompt would cost
+# more than the sentence is worth.
+SUMMARY_ROWS = 50
+
+# Answers when there is nothing to summarise. Written out rather than asked for
+# because a model cannot say "no rows" more clearly than this, and asking it to
+# spends a request on a sentence that is always the same.
+NO_ROWS = "No rows matched that question."
+
+# The one rule that matters is the third. Everything a person reads here looks
+# authoritative, and the failure that would actually hurt is a plausible number
+# that is in the sentence but not in the table.
+SUMMARY_PROMPT = """You describe the result of a database query in plain English.
+
+You are given the question that was asked and the rows that came back.
+
+Rules:
+- One to three sentences. No preamble, no sign-off, no apology.
+- Say what the rows show. Do not explain the SQL and do not offer advice.
+- Every number and name in your answer must appear in the rows. Never estimate,
+  round, or infer a figure that is not there.
+- If the rows are only part of a larger result, say so.
+"""
+
+
+def _rows_as_text(columns, rows):
+    """The rows as a small table the model can read."""
+    lines = [" | ".join(columns)]
+    for row in rows:
+        lines.append(" | ".join("" if value is None else str(value) for value in row.values()))
+    return "\n".join(lines)
+
+
+def summarize_rows(question: str, columns, rows, row_count: int = None):
+    """One or two sentences about the rows, or None if the model could not.
+
+    Returning None rather than raising is deliberate. The rows are the answer;
+    the sentence is a convenience on top of them. A model that is busy or
+    unreachable should cost the reader their summary, not their data - and the
+    table and the SQL are on screen either way.
+    """
+    if not rows:
+        return NO_ROWS
+
+    total = row_count if row_count is not None else len(rows)
+    shown = list(rows)[:SUMMARY_ROWS]
+    header = f"Question: {question}\n\n"
+    if len(shown) < total:
+        header += f"First {len(shown)} of {total} rows:\n"
+    else:
+        header += f"Rows ({total}):\n"
+
+    try:
+        return client.chat(
+            SUMMARY_PROMPT,
+            header + _rows_as_text(columns, shown),
+            max_tokens=client.SUMMARY_TOKENS,
+        )
+    except client.LLMError:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +298,13 @@ def _jsonable(value):
     return value
 
 
-def answer_question(question: str) -> dict:
+def answer_question(question: str, summarize: bool = True) -> dict:
     """Question in, rows out. Raises NoSQLReturned or UnsafeQuery on refusal.
+
+    Two model calls when summarize is on: one to write the query, one to say
+    what came back. They are separate on purpose - the first has to be exact
+    and the second only has to read well, and a model that fails at the second
+    still leaves a complete answer behind.
 
     A database error is not caught here: the caller decides whether a broken
     generated query is a 400 to the user or a line in an eval report.
@@ -283,22 +331,32 @@ def answer_question(question: str) -> dict:
         # Hitting the cap exactly is the only signal available without running
         # the query twice; it may be a false alarm on a result of exactly 500.
         "truncated": len(rows) >= MAX_ROWS,
-        "generator": GENERATOR,
+        # None when the summarising call failed. The UI shows the table and the
+        # query in that case and says nothing, which is honest: there is no
+        # sentence, rather than a sentence that might be wrong.
+        "answer": summarize_rows(question, columns, rows) if summarize else None,
+        # Which model wrote the query. Travels with the answer so a report can
+        # name it without the reader having to know what .env said that day.
+        "generator": client.model_name(),
     }
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("usage: python backend/reports/ask.py \"your question\"")
-        print("\nThe stub can answer:")
-        for example in stub_questions():
+        print("\nFor example:")
+        for example in example_questions():
             print(f"  - {example}")
         raise SystemExit(2)
 
     try:
         answer = answer_question(" ".join(sys.argv[1:]))
-    except (NoSQLReturned, UnsafeQuery) as exc:
+    except (NoSQLReturned, UnsafeQuery, client.LLMError) as exc:
         raise SystemExit(f"Refused: {exc}")
+
+    if answer["answer"]:
+        print(answer["answer"])
+        print()
 
     print(answer["sql"])
     print()

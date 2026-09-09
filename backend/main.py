@@ -25,11 +25,11 @@ from reports import (
     portfolio_report,
     workforce_report,
 )
+from llm import client
 from reports.ask import (
-    GENERATOR,
     NoSQLReturned,
     answer_question,
-    stub_questions,
+    example_questions,
 )
 from reports.sql_guard import UnsafeQuery
 from schema_audit.engine import rule_catalog, run_audit
@@ -258,8 +258,13 @@ class AskRequest(BaseModel):
 
 @api.get("/api/reports/ask/examples")
 def report_ask_examples():
-    """Questions the current generator can answer, plus which generator it is."""
-    return {"generator": GENERATOR, "questions": stub_questions()}
+    """Example questions to offer, and the model that will answer them.
+
+    The model can answer far more than these; they exist so the box is not
+    empty on arrival. Reading them needs no key, so the page still loads when
+    the model does not.
+    """
+    return {"generator": client.model_name(), "questions": example_questions()}
 
 
 @api.post("/api/reports/ask")
@@ -273,6 +278,25 @@ def report_ask(request: AskRequest):
         raise HTTPException(
             status_code=422, detail=f"The generated query was refused. {exc}"
         )
+    except client.LLMRateLimited as exc:
+        # The one the free tier produces. 429 rather than 503 because the
+        # answer is to wait, not to call somebody: a browser and a person read
+        # it the same way.
+        raise HTTPException(status_code=429, detail=str(exc))
+    except client.LLMTruncated as exc:
+        # The model was answering and ran out of room. Nothing is wrong with
+        # the service, so this is not a 503; a shorter question usually works.
+        raise HTTPException(status_code=422, detail=str(exc))
+    except client.LLMNotConfigured as exc:
+        # A missing or rejected key, or a model id that does not exist. The
+        # message names the .env line to fix, and no question will work until
+        # somebody does.
+        raise HTTPException(status_code=503, detail=str(exc))
+    except client.LLMError as exc:
+        # LLMUnavailable and anything added later. 503 is the honest answer:
+        # the service this endpoint depends on is not answering, and the
+        # question was never the problem.
+        raise HTTPException(status_code=503, detail=str(exc))
     except psycopg.errors.QueryCanceled:
         # statement_timeout on the read-only role fired. The query was valid;
         # it was too expensive, and the fix is a narrower question.

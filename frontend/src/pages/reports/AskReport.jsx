@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ResultTable from '../../components/ResultTable'
 import { apiPost, useApiData } from '../../utils/api'
 import { downloadCsv } from '../../utils/csv'
 
@@ -7,48 +8,8 @@ import { downloadCsv } from '../../utils/csv'
 // reader to judge whether the answer means what they asked for, and hiding it
 // would turn a checkable number into a claim.
 //
-// No model is connected yet - the backend answers from a fixed set - so the
-// page states which generator produced the query rather than implying one ran.
-
-function formatCell(value) {
-  if (value === null || value === undefined) return '-'
-  if (typeof value === 'number') return value.toLocaleString('en-US')
-  return String(value)
-}
-
-function ResultTable({ columns, rows }) {
-  if (rows.length === 0) {
-    return (
-      <p className="chart-empty">
-        The query ran and returned no rows. That is an answer too - nothing in
-        the data matches the question.
-      </p>
-    )
-  }
-
-  return (
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>
-              {columns.map((column) => (
-                <td key={column}>{formatCell(row[column])}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+// The result table is the same one the assistant draws, so a question asked
+// in either place renders identically.
 
 export default function AskReport() {
   const { data: examples } = useApiData('/api/reports/ask/examples')
@@ -85,19 +46,8 @@ export default function AskReport() {
     }
   }
 
-  const isStub = examples?.generator === 'stub'
-
   return (
     <>
-      {isStub ? (
-        <div className="notice">
-          No language model is connected yet. Questions are answered from a
-          fixed set of examples, so the screen below is the finished path -
-          question, generated SQL, guard, result - with the generation step
-          stubbed out.
-        </div>
-      ) : null}
-
       <section className="card">
         <form
           className="ask-form"
@@ -182,6 +132,10 @@ export default function AskReport() {
               </button>
             </div>
           </header>
+
+          {answer.answer ? (
+            <p className="chat-summary">{answer.answer}</p>
+          ) : null}
 
           <div className="code-block">
             <button type="button" className="copy-button" onClick={copySql}>

@@ -1,3 +1,4 @@
+import Assistant from '../components/Assistant'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import DataTable from '../components/DataTable'
@@ -70,6 +71,8 @@ export default function Dashboard() {
         loading={projectsLoading}
         error={projectsError}
       />
+
+      <Assistant />
     </>
   )
 }

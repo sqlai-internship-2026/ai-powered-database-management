@@ -8,14 +8,20 @@ Both queries are executed and the result sets are compared. Nothing here looks
 at SQL text: a question has many correct spellings, and the only thing that
 matters is whether the rows are the same.
 
-Two comparisons run, in order:
+Three comparisons run, in order, and each is reported under its own mark rather
+than folded into the pass count, because they are progressively weaker results
+and worth seeing apart:
 
-  1. exact - same rows, same column order;
-  2. reordered - same rows once each row's values are sorted, which catches an
-     answer that selected the right columns in a different order.
+  1. PASS  exact - same rows, same column order;
+  2. PASS* reordered - same rows once each row's values are sorted, which
+     catches an answer that selected the right columns in a different order;
+  3. PASS+ extra - every expected value is there, alongside columns nobody
+     asked for. A query that adds the id next to the name has answered the
+     question; failing it would be grading presentation, not correctness.
 
-A reordered match is reported separately rather than folded into the pass
-count, because it is a weaker result and worth seeing.
+A fourth mark, SKIP, is not a result at all: the model never answered, because
+the endpoint was busy or unreachable. Those cases leave the score entirely
+instead of counting as wrong SQL, and are reported on their own line.
 
 Row order is ignored throughout. A question that names an order ("largest
 first") pins the rows through LIMIT anyway, and grading a plain GROUP BY on row
@@ -43,6 +49,7 @@ from decimal import Decimal  # noqa: E402
 import psycopg  # noqa: E402
 
 from db import fetch_all, fetch_all_readonly  # noqa: E402
+from llm.client import LLMError  # noqa: E402
 from reports.eval_cases import CASES, case_by_id  # noqa: E402
 from reports.sql_guard import UnsafeQuery, validate_select  # noqa: E402
 
@@ -76,8 +83,52 @@ def _sorted_cells(tuples):
     return _sorted_rows([tuple(sorted(row, key=str)) for row in tuples])
 
 
+def _covers(reference_row, candidate_row):
+    """Every value of the reference row appears in the candidate row.
+
+    A list rather than a set: two employees on the same salary are two values,
+    and a candidate carrying only one of them has not answered the question.
+    """
+    remaining = list(candidate_row)
+    for value in reference_row:
+        if value not in remaining:
+            return False
+        remaining.remove(value)
+    return True
+
+
+def _covers_all(reference, candidate):
+    """Each reference row is matched, one to one, by a row that carries it.
+
+    Quadratic, which is fine on results this size and would not be on 500 rows;
+    the cases here return tens of rows because a question a person asks does.
+    """
+    unmatched = list(candidate)
+    for row in reference:
+        for index, other in enumerate(unmatched):
+            if _covers(row, other):
+                unmatched.pop(index)
+                break
+        else:
+            return False
+    return True
+
+
 def compare(reference_rows, candidate_rows):
-    """(verdict, note) where verdict is 'pass', 'reordered' or 'fail'."""
+    """(verdict, note) where verdict is 'pass', 'reordered', 'extra' or 'fail'.
+
+    What counts as a right answer is a real choice, and this is where it is
+    made. Two queries that answer the same question rarely agree on
+    presentation: one selects the id alongside the name, another writes
+    first_name || ' ' || last_name where the reference kept two columns. Both
+    return the information that was asked for.
+
+    So the rule is that the reference's values have to be present, not that the
+    two shapes have to match. Extra columns are forgiven ('extra'); a missing
+    value is not, and neither is a wrong one. SELECT * does not slip through
+    that: it has to return the right rows as well, and the row count is checked
+    before anything else.
+    """
     reference = _rows_as_tuples(reference_rows)
     candidate = _rows_as_tuples(candidate_rows)
 
@@ -86,16 +137,20 @@ def compare(reference_rows, candidate_rows):
             f"returned {len(candidate)} rows, expected {len(reference)}"
         )
 
-    if reference and len(reference[0]) != len(candidate[0]):
-        return "fail", (
-            f"returned {len(candidate[0])} columns, expected {len(reference[0])}"
-        )
-
     if _sorted_rows(reference) == _sorted_rows(candidate):
         return "pass", ""
 
     if _sorted_cells(reference) == _sorted_cells(candidate):
         return "reordered", "same values, different column order"
+
+    if _covers_all(_sorted_rows(reference), _sorted_rows(candidate)):
+        width = len(candidate[0]) - len(reference[0]) if reference else 0
+        return "extra", f"all expected values, plus {width} more column(s)"
+
+    if reference and len(reference[0]) != len(candidate[0]):
+        return "fail", (
+            f"returned {len(candidate[0])} columns, expected {len(reference[0])}"
+        )
 
     # Name one row that differs; a whole diff is unreadable at 500 rows.
     missing = [row for row in _sorted_rows(reference) if row not in candidate]
@@ -120,6 +175,15 @@ def grade_case(case, translate):
 
     try:
         raw = translate(case["question"])
+    except LLMError as exc:
+        # The model never answered - busy, unreachable, out of tokens. Scoring
+        # that as a wrong query would blame the model for the free tier and
+        # quietly lower the number this whole harness exists to produce, so it
+        # leaves the score entirely and says why.
+        result["verdict"] = "skipped"
+        result["note"] = f"{type(exc).__name__}: {exc}"
+        result["seconds"] = time.perf_counter() - started
+        return result
     except Exception as exc:  # a generator failure is a failed case, not a crash
         result["note"] = f"generator raised {type(exc).__name__}: {exc}"
         result["seconds"] = time.perf_counter() - started
@@ -156,7 +220,16 @@ def run_eval(translate, cases=CASES):
 # Reporting
 # ---------------------------------------------------------------------------
 
-MARKS = {"pass": "PASS", "reordered": "PASS*", "fail": "FAIL"}
+MARKS = {
+    "pass": "PASS",
+    "reordered": "PASS*",
+    "extra": "PASS+",
+    "fail": "FAIL",
+    "skipped": "SKIP",
+}
+
+# The three that answered the question, however they laid the answer out.
+USABLE = ("pass", "reordered", "extra")
 
 
 def print_report(results, verbose=False):
@@ -175,31 +248,49 @@ def print_report(results, verbose=False):
             for line in result["sql"].splitlines():
                 print(f"        | {line}")
 
-    passed = sum(1 for r in results if r["verdict"] == "pass")
-    reordered = sum(1 for r in results if r["verdict"] == "reordered")
-    total = len(results)
+    # A skipped case is one the model never answered, so it is not evidence
+    # either way and is counted out of the score rather than against it. The
+    # count is still printed: a run that scores 10/10 having skipped ten cases
+    # is a very different result from one that scored 10/10 out of ten.
+    scored = [r for r in results if r["verdict"] != "skipped"]
+    skipped = len(results) - len(scored)
+    passed = sum(1 for r in scored if r["verdict"] == "pass")
+    reordered = sum(1 for r in scored if r["verdict"] == "reordered")
+    extra = sum(1 for r in scored if r["verdict"] == "extra")
+    total = len(scored)
 
     print()
-    print(f"  {passed}/{total} correct", end="")
-    if reordered:
-        print(f", {reordered} correct with a different column order (PASS*)", end="")
-    print(f"  -  {round(100 * (passed + reordered) / total)}% usable")
+    if total:
+        usable = passed + reordered + extra
+        print(f"  {passed}/{total} exact", end="")
+        if reordered:
+            print(f", {reordered} in a different column order (PASS*)", end="")
+        if extra:
+            print(f", {extra} with extra columns (PASS+)", end="")
+        print(f"  -  {usable}/{total} usable ({round(100 * usable / total)}%)")
+    else:
+        print("  no case was answered, so there is nothing to score")
+    if skipped:
+        print(f"  {skipped} skipped: the model did not answer (not counted above)")
 
     by_difficulty = {}
-    for result in results:
+    for result in scored:
         bucket = by_difficulty.setdefault(result["difficulty"], [0, 0])
         bucket[1] += 1
-        if result["verdict"] in ("pass", "reordered"):
+        if result["verdict"] in USABLE:
             bucket[0] += 1
     parts = [
         f"{name} {good}/{count}"
         for name, (good, count) in sorted(by_difficulty.items())
     ]
-    print(f"  by difficulty: {', '.join(parts)}")
+    if parts:
+        print(f"  by difficulty: {', '.join(parts)}")
     print(f"  total time: {sum(r['seconds'] for r in results):.1f}s")
     print()
 
-    return passed + reordered == total
+    # A skip is not a pass: a green exit code has to mean every case was both
+    # answered and right, or a rate-limited run would look like a clean one.
+    return bool(total) and not skipped and passed + reordered + extra == total
 
 
 def build_translator(name):

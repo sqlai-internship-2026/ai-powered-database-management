@@ -21,7 +21,7 @@ needed.
 Configuration comes from the repository root .env, the same file db.py reads:
 
     NVIDIA_API_KEY=nvapi-...
-    NVIDIA_MODEL=moonshotai/kimi-k3
+    NVIDIA_MODEL=nvidia/nemotron-3-super-120b-a12b
     NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 
 Run it from the repository root:
@@ -72,7 +72,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
-DEFAULT_MODEL = "moonshotai/kimi-k3"
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
 # How long to wait before each retry when the model is busy, in seconds. The
 # endpoint returns no Retry-After header, so these are our own choice: short
