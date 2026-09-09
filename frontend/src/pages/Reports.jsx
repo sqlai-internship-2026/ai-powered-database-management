@@ -9,9 +9,11 @@ const tabs = [
   { to: '/reports', end: true, label: 'Financial', uses: ['years', 'status'] },
   { to: '/reports/workforce', label: 'Workforce', uses: ['department'] },
   { to: '/reports/portfolio', label: 'Portfolio', uses: ['status'] },
-  // Ask builds its own query from the question, so the filter row above
-  // does not apply to it.
-  { to: '/reports/ask', label: 'Ask', uses: [] },
+  // Dynamic builds its own query from the question, so the filter row above
+  // does not apply to it. The route keeps its original /ask path: it is what
+  // the tab still does first, and renaming a route only breaks the links
+  // people have already kept.
+  { to: '/reports/ask', label: 'Dynamic', uses: [] },
 ]
 
 const emptyFilters = {

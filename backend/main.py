@@ -30,6 +30,7 @@ from reports.ask import (
     NoSQLReturned,
     answer_question,
     example_questions,
+    run_query,
 )
 from reports.sql_guard import UnsafeQuery
 from schema_audit.engine import rule_catalog, run_audit
@@ -256,6 +257,18 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)
 
 
+class RunRequest(BaseModel):
+    """SQL a browser saved earlier, sent back to be run again.
+
+    The question rides along because the chart rules read it for wording like
+    "as a pie chart"; it is never sent to a model here, and an empty one only
+    costs the card its default chart type.
+    """
+
+    sql: str = Field(min_length=1, max_length=5000)
+    question: str = Field(default="", max_length=500)
+
+
 @api.get("/api/reports/ask/examples")
 def report_ask_examples():
     """Example questions to offer, and the model that will answer them.
@@ -267,11 +280,17 @@ def report_ask_examples():
     return {"generator": client.model_name(), "questions": example_questions()}
 
 
-@api.post("/api/reports/ask")
-def report_ask(request: AskRequest):
-    """Answers a typed question with the rows its generated SQL returns."""
+def _answered(build):
+    """Runs one step of the ask pipeline and gives each failure its own status.
+
+    Shared by the two endpoints below because they fail in exactly the same
+    ways: both hand untrusted SQL to the guard and to a role that can only
+    read, and both would otherwise repeat this ladder verbatim. Only the model
+    branches are specific to asking - a re-run never calls one, so those simply
+    never fire there.
+    """
     try:
-        return answer_question(request.question)
+        return build()
     except NoSQLReturned as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except UnsafeQuery as exc:
@@ -324,6 +343,32 @@ def report_ask(request: AskRequest):
             status_code=422,
             detail=f"The generated query did not run: {first_line}",
         )
+
+
+@api.post("/api/reports/ask")
+def report_ask(request: AskRequest):
+    """Answers a typed question with the rows its generated SQL returns."""
+    return _answered(lambda: answer_question(request.question))
+
+
+@api.post("/api/reports/run")
+def report_run(request: RunRequest):
+    """Runs SQL a saved report card is holding, without asking a model again.
+
+    This is the one endpoint that takes SQL from the browser, so it is worth
+    being explicit about why that is safe. It is the same SQL the model wrote
+    when the card was built, and it meets exactly the same two defences on the
+    way back in: validate_select accepts a single SELECT and nothing else, and
+    the role it then runs as holds SELECT and nothing else, under a five second
+    statement timeout. Neither defence trusts where the text came from, which
+    is the whole point - a card saved last week is no more trusted than a
+    sentence a model produced a moment ago.
+
+    Re-running the SQL rather than the question is what makes a saved report a
+    report: the same query every morning, no model call, no bill, and no chance
+    of today's phrasing quietly changing yesterday's figures.
+    """
+    return _answered(lambda: run_query(request.sql, request.question))
 
 
 # Registered last, so every route defined above is part of the router.

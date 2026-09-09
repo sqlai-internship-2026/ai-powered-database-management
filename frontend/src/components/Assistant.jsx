@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import AutoChart from './charts/AutoChart'
 import PageHeader from './PageHeader'
 import ResultTable from './ResultTable'
 import { apiPost, useApiData } from '../utils/api'
@@ -27,6 +28,9 @@ import { apiPost, useApiData } from '../utils/api'
 
 function Answer({ data }) {
   const [showSql, setShowSql] = useState(false)
+  // "table" is not a chart, and a figure card above a one-row table would say
+  // the same thing twice.
+  const chartable = data.chart && !['table', 'kpi'].includes(data.chart.type)
 
   return (
     <div className="chat-answer">
@@ -38,6 +42,21 @@ function Answer({ data }) {
           this time.
         </p>
       )}
+
+      {/* The chart, when the rows have a shape worth drawing, and the table
+          underneath it either way. The assistant offers no chart-type buttons -
+          it is a place to ask one question, and the Ask report is where a
+          reader goes to disagree with how the answer was drawn. */}
+      {chartable ? (
+        <div className="chat-chart">
+          <AutoChart
+            spec={data.chart}
+            columns={data.columns}
+            rows={data.rows}
+            type={data.chart.type}
+          />
+        </div>
+      ) : null}
 
       <ResultTable columns={data.columns} rows={data.rows} />
 

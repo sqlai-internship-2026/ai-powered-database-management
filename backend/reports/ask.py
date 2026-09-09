@@ -1,11 +1,12 @@
 """Turns a typed question into rows, through generated SQL.
 
-The pipeline is five steps, and the model is only in the first and the last:
+The pipeline is six steps, and the model is only in the second and the last:
 
     build_schema_context()   what the database looks like
     generate_sql()           question + schema -> SQL          <- the model
     validate_select()        accept or refuse the SQL
     readonly_cursor()        run it as a role that can only read
+    choose_chart()           rows -> the chart they should be drawn as
     summarize_rows()         rows -> a sentence or two          <- the model
 
 The two model calls fail differently and are treated differently. A query that
@@ -40,6 +41,7 @@ if __name__ == "__main__":
 
 from db import readonly_cursor  # noqa: E402
 from llm import client  # noqa: E402
+from reports.chart_spec import choose_chart  # noqa: E402
 from reports.schema_context import build_schema_context  # noqa: E402
 from reports.sql_guard import UnsafeQuery, validate_select  # noqa: E402
 
@@ -298,19 +300,24 @@ def _jsonable(value):
     return value
 
 
-def answer_question(question: str, summarize: bool = True) -> dict:
-    """Question in, rows out. Raises NoSQLReturned or UnsafeQuery on refusal.
+def run_query(sql: str, question: str = "", summarize: bool = False) -> dict:
+    """Runs SQL nobody in this repository wrote, and describes what came back.
 
-    Two model calls when summarize is on: one to write the query, one to say
-    what came back. They are separate on purpose - the first has to be exact
-    and the second only has to read well, and a model that fails at the second
-    still leaves a complete answer behind.
+    Split out of answer_question because a saved report re-runs its cards from
+    the SQL rather than from the question. That is the difference between a
+    report that shows the same figures every morning and one that quietly
+    changes because the model phrased the query differently today - and it also
+    means refreshing a report costs no model call at all.
 
-    A database error is not caught here: the caller decides whether a broken
-    generated query is a 400 to the user or a line in an eval report.
+    The SQL is untrusted whichever way it arrived: from the model a moment ago,
+    or from a browser that saved it last week. validate_select and the
+    SELECT-only role treat both the same, which is what makes the second case
+    safe to offer.
+
+    The question is still worth passing when there is one - choose_chart reads
+    it for wording like "as a pie chart" - but it is not required, and nothing
+    here sends it to the model unless summarize is on.
     """
-    raw = generate_sql(question, schema_context())
-    sql = extract_sql(raw)
     safe = validate_select(sql, MAX_ROWS)
 
     with readonly_cursor() as cur:
@@ -331,14 +338,36 @@ def answer_question(question: str, summarize: bool = True) -> dict:
         # Hitting the cap exactly is the only signal available without running
         # the query twice; it may be a false alarm on a result of exactly 500.
         "truncated": len(rows) >= MAX_ROWS,
+        # How to draw it. Chosen from the rows as the database returned them,
+        # before _jsonable flattens a Decimal into a float and a date into a
+        # string, because those are the types the rules read.
+        "chart": choose_chart(question, columns, rows),
         # None when the summarising call failed. The UI shows the table and the
         # query in that case and says nothing, which is honest: there is no
         # sentence, rather than a sentence that might be wrong.
         "answer": summarize_rows(question, columns, rows) if summarize else None,
-        # Which model wrote the query. Travels with the answer so a report can
-        # name it without the reader having to know what .env said that day.
-        "generator": client.model_name(),
     }
+
+
+def answer_question(question: str, summarize: bool = True) -> dict:
+    """Question in, rows out. Raises NoSQLReturned or UnsafeQuery on refusal.
+
+    Two model calls when summarize is on: one to write the query, one to say
+    what came back. They are separate on purpose - the first has to be exact
+    and the second only has to read well, and a model that fails at the second
+    still leaves a complete answer behind.
+
+    A database error is not caught here: the caller decides whether a broken
+    generated query is a 400 to the user or a line in an eval report.
+    """
+    raw = generate_sql(question, schema_context())
+    answer = run_query(extract_sql(raw), question, summarize=summarize)
+    # Which model wrote the query. Travels with the answer so a report can name
+    # it without the reader having to know what .env said that day. Set here
+    # rather than in run_query, because a re-run has no generator: the SQL was
+    # written once, and saying otherwise would credit today's model for it.
+    answer["generator"] = client.model_name()
+    return answer
 
 
 if __name__ == "__main__":
