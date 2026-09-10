@@ -8,12 +8,15 @@ Run from the repository root:
     .venv\\Scripts\\python.exe -m pytest backend/reports/test_ask.py -q
 """
 
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
 from llm import client
+from reports import ask
 from reports.ask import (
     NO_ROWS,
     SQL_PROMPT,
@@ -23,8 +26,10 @@ from reports.ask import (
     _jsonable,
     example_questions,
     extract_sql,
+    run_query,
     summarize_rows,
 )
+from reports.sql_guard import UnsafeQuery
 
 
 # --------------------------------------------------------------------------
@@ -231,6 +236,95 @@ def test_a_busy_model_costs_the_summary_and_nothing_else(monkeypatch):
 def test_the_summary_is_told_not_to_invent_numbers():
     flat = " ".join(SUMMARY_PROMPT.lower().split())
     assert "must appear in the rows" in flat
+
+
+# --------------------------------------------------------------------------
+# run_query
+#
+# The spine both endpoints stand on: /api/reports/ask reaches it through
+# answer_question, and /api/reports/run calls it with SQL a saved report card
+# sent back. The database is replaced with a cursor that returns what it is
+# told, because what is being checked here is the payload and the order of the
+# steps, neither of which needs a server.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def rows_from(monkeypatch):
+    """Makes readonly_cursor hand back fixed rows, and records the SQL it ran."""
+    ran = {}
+
+    def use(columns, rows):
+        @contextmanager
+        def fake_cursor():
+            class Cursor:
+                description = [SimpleNamespace(name=name) for name in columns]
+
+                def execute(self, sql):
+                    ran["sql"] = sql
+
+                def fetchall(self):
+                    return rows
+
+            yield Cursor()
+
+        monkeypatch.setattr(ask, "readonly_cursor", fake_cursor)
+        return ran
+
+    return use
+
+
+def test_a_result_carries_the_chart_it_should_be_drawn_as(rows_from):
+    rows_from(
+        ["year", "amount"],
+        [{"year": 2024, "amount": Decimal(10)}, {"year": 2025, "amount": Decimal(20)}],
+    )
+    answer = run_query("SELECT year, SUM(amount) AS amount FROM investments GROUP BY 1")
+
+    assert answer["chart"]["type"] == "column"
+    assert answer["chart"]["label_column"] == "year"
+    # The rows are JSON by now, but the chart was chosen before that: a Decimal
+    # and a date still had their types when the rules read them.
+    assert answer["rows"][0]["amount"] == 10.0
+
+
+def test_the_guard_still_stands_between_the_sql_and_the_cursor(rows_from):
+    rows_from(["n"], [])
+    with pytest.raises(UnsafeQuery):
+        run_query("DELETE FROM employees")
+
+
+def test_a_missing_limit_is_added_before_the_query_runs(rows_from):
+    ran = rows_from(["n"], [{"n": 1}])
+    run_query("SELECT 1 AS n")
+    assert "LIMIT" in ran["sql"]
+
+
+def test_re_running_a_query_asks_no_model_at_all(rows_from, monkeypatch):
+    rows_from(["n"], [{"n": 1}])
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a re-run must not call the model")
+
+    monkeypatch.setattr(client, "chat", refuse)
+    answer = run_query("SELECT 1 AS n", "How many?")
+
+    assert answer["answer"] is None
+    # No generator either: the SQL was written once, and naming today's model
+    # would credit it for a query it did not write.
+    assert "generator" not in answer
+
+
+def test_a_question_still_steers_the_chart_on_a_re_run(rows_from):
+    rows_from(
+        ["status", "count"],
+        [{"status": "Active", "count": 4}, {"status": "On Hold", "count": 2}],
+    )
+    answer = run_query(
+        "SELECT status, COUNT(*) AS count FROM projects GROUP BY 1",
+        "Projects per status as a pie chart.",
+    )
+    assert answer["chart"]["type"] == "donut"
 
 
 # --------------------------------------------------------------------------

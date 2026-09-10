@@ -19,10 +19,10 @@ audit are read live from the database. There is no mock data in the frontend.
 │   └── src/
 │       ├── auth/             Keycloak provider and route guard
 │       ├── components/       Layout, sidebar, table, cards, the assistant
-│       │   └── charts/       Bar, column and bullet-meter marks (no chart library)
+│       │   └── charts/       Bar, column, line, donut and meter marks (no chart library)
 │       ├── pages/            One component per route
 │       │   └── reports/      The four reporting tabs
-│       └── utils/            REST client, formatting and CSV helpers
+│       └── utils/            REST client, formatting, CSV and saved-report helpers
 ├── backend/                  FastAPI service (read-only REST API)
 │   ├── main.py               Endpoints
 │   ├── auth.py               Keycloak access token validation
@@ -32,6 +32,7 @@ audit are read live from the database. There is no mock data in the frontend.
 │   ├── reports/              Reporting queries, and the natural-language pipeline
 │   │   ├── ask.py            Question -> SQL -> rows -> a sentence about them
 │   │   ├── sql_guard.py      Accept-or-refuse gate for generated SQL
+│   │   ├── chart_spec.py     Picks the chart a result should be drawn as
 │   │   ├── schema_context.py The schema description a model reads
 │   │   ├── eval_cases.py     20 questions with hand-written reference SQL
 │   │   └── check_model.py    Is the hosted model reachable and answering?
@@ -118,9 +119,10 @@ npm run dev
 
 ## API endpoints
 
-Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`,
-which carries a question in its body rather than a change. All of them require
-an `Authorization: Bearer <access token>` header except `/api/health`.
+Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`
+and `/api/reports/run`, which carry a question and a query in their bodies
+rather than a change. All of them require an `Authorization: Bearer <access
+token>` header except `/api/health`.
 
 | Endpoint                   | Returns                                              |
 | -------------------------- | ---------------------------------------------------- |
@@ -135,13 +137,23 @@ an `Authorization: Bearer <access token>` header except `/api/health`.
 | `/api/reports/financial`   | Budget against committed investment, per program and year |
 | `/api/reports/workforce`   | Headcount, payroll, hiring history and allocation    |
 | `/api/reports/portfolio`   | Schedule position and hardware consumption           |
-| `/api/reports/ask`         | POST. A question in English, answered with rows       |
+| `/api/reports/ask`         | POST. A question in English, answered with rows and a chart |
+| `/api/reports/run`         | POST. Runs a saved report card's SQL again, without a model |
 | `/api/reports/ask/examples`| Example questions, and the model that will answer them|
 | `/api/schema-audit`        | Structural findings with suggested DDL per finding    |
 | `/api/schema-audit/rules`  | The audit rule catalog                               |
 
 Numeric and date columns are cast in SQL, so the payload contains plain numbers
 and ISO `YYYY-MM-DD` date strings.
+
+`/api/reports/run` is the one endpoint that takes SQL from the browser, which is
+worth being explicit about. It is the same SQL the model wrote when a report
+card was built, and it meets exactly the same two defences on the way back in:
+`validate_select` accepts a single SELECT and nothing else, and the role it then
+runs as holds `SELECT` and nothing else, under a five second statement timeout.
+Neither defence trusts where the text came from - that is the point. A card
+saved last week is no more trusted than a sentence a model produced a moment
+ago, and both are refused the same way.
 
 The junction tables `project_employees` and `project_products` have no endpoint
 of their own, no menu entry and no page on purpose. They are read through the
@@ -157,10 +169,13 @@ so the sidebar stays a list of subjects rather than a list of reports:
 | **Financial** | `/reports`           | Budget against committed investment, per program and per year, by investment type |
 | **Workforce** | `/reports/workforce` | Headcount and payroll per department, hiring history, per-person program load |
 | **Portfolio** | `/reports/portfolio` | Where each program sits in its schedule, and the hardware it consumes |
-| **Ask**       | `/reports/ask`       | A question typed in English, the SQL generated from it, and the rows it returns |
+| **Dynamic**   | `/reports/ask`       | Reports built from typed questions: each answer arrives as a chart and can be kept as a card |
 
-The first three tabs share one filter row. **Ask** builds its own query from the
-question, so the filters do not apply to it.
+The first three tabs are fixed - the questions were chosen in advance and their
+SQL lives in `backend/reports/queries.py`. **Dynamic** is the opposite: the reader
+writes the question, the query is generated from it, and the report is whatever
+they decide to keep. It builds its own query, so the shared filter row does not
+apply to it.
 
 The **assistant** at the bottom of the dashboard answers the same kind of
 question against the same endpoint. It has no menu entry and no route of its
@@ -187,14 +202,82 @@ Hardware cost is worth reading carefully: it is
 It lands between roughly 2% and 22% of a program budget, because a budget also
 covers labour, test infrastructure and certification.
 
+### Reports built from questions
+
+The **Dynamic** tab is where a report nobody wrote in advance gets built. Ask a
+question, see the rows drawn as whatever shape they turn out to be, overrule
+that shape if it is wrong, and keep the card. Cards accumulate into a report
+with a title and a description, which can be saved, reopened, refreshed and
+printed.
+
+Which chart a result gets is decided in `backend/reports/chart_spec.py`, from
+the column types, the column names and the rows - not by a second call to the
+model. A model call would cost a few seconds on every question, would be one
+more thing the free tier can refuse, and would answer the same question
+differently on two afternoons. Column types already determine the answer, and
+deciding in Python is what lets the rules be unit tested with no key, no network
+and no database.
+
+| The shape of the result | Drawn as |
+| ----------------------- | -------- |
+| No rows, or no numeric column to measure | Table |
+| One row, up to four numbers, no label column | A figure card per number |
+| Label + one measure, label is a date or an ascending year, up to 6 points | Columns |
+| Label + one measure, label is a date or an ascending year, more than 6 points | Line |
+| Label + one measure, categorical label, up to 30 rows | Bars |
+| As above, up to 8 rows, summable values, and the question asks about a share, a breakdown or a distribution | Donut |
+| More than 30 rows, three or more numeric columns, or each row is a record rather than one label | Table |
+
+Four rules do most of the work of keeping a chart honest:
+
+- An `id` column is never a measurement, and a four-digit `year` is a position
+  on an axis rather than a quantity.
+- A time axis has to already be in time order. "The three biggest years" is
+  sorted by amount, and drawing a line through it would show a sequence that is
+  not there - so it becomes a ranking instead. The rows are never re-sorted,
+  because that would contradict the `ORDER BY` the question asked for.
+- A donut is only offered when the values add up to something. An average or a
+  rate never gets one, whatever the wording.
+- When several text columns come back, each row is a record rather than one
+  labelled value - "the five highest paid employees, with their department" -
+  and the table keeps every column instead of a chart dropping three of them.
+
+Naming a chart in the question works when the result supports it: "as a pie
+chart", "over time", "as a table". When it does not, the request is neither
+obeyed nor silently dropped - the card says a pie was asked for and why there is
+none. Every card also carries buttons for the types its result genuinely
+supports, and a **Measure** picker when more than one numeric column came back.
+Types that would misread the data are absent rather than disabled.
+
+Charts still add no dependency. `LineChart` and `DonutChart` join the existing
+CSS bars and columns; the line is an SVG stretched over the plot box with a
+non-scaling stroke, and the donut is `stroke-dasharray` on a circle. The donut
+is the one chart that needs more than one colour, because a slice has no length
+to compare - it uses a single-hue ramp handed out largest slice first, so
+lightness and ordering say the same thing, and the legend prints the value and
+the share beside every label.
+
+**Saved reports live in the browser**, in `localStorage`. Saving to the database
+would mean the first migration, the first `POST` that writes, a role that can do
+more than `SELECT`, and a decision about who may edit whose report - a lot to
+take on for a convenience one reader gets the whole value of. The cost is said
+plainly on screen: a saved report is not shared.
+
+What is stored is the definition, never the data: the question, the SQL, the
+chosen chart type and measure. Reopening a report runs each card's SQL again
+through `/api/reports/run`, so the figures are today's, no model is called, and
+nothing is billed. If a refreshed result no longer supports the chart type that
+was saved with it, the card falls back to what the new result reads as.
+
 ## Natural language questions
 
-A question typed in English, answered with rows and a sentence describing them.
-Two screens use the same endpoint: the **assistant** at the bottom of the
-dashboard, which keeps the questions asked so far on screen, and the **Ask**
-report (`/reports/ask`), which answers one at a time next to a CSV button.
+A question typed in English, answered with rows, a chart and a sentence
+describing them. Two screens use the same endpoint: the **assistant** at the
+bottom of the dashboard, which keeps the questions asked so far on screen, and
+the **Dynamic** report (`/reports/ask`), where answers are kept as the cards of a
+report.
 
-Five steps, in `backend/`:
+Six steps, in `backend/`:
 
 | Step | File | What it does |
 | ---- | ---- | ------------ |
@@ -202,7 +285,8 @@ Five steps, in `backend/`:
 | 2 | `reports/ask.py` -> `generate_sql()` | Question + schema -> SQL, through `llm/client.py` |
 | 3 | `reports/sql_guard.py` | Accepts or refuses the SQL. Only a single SELECT or WITH; writes, second statements and file-reading functions are named and rejected; a missing `LIMIT` is added |
 | 4 | `db.readonly_cursor()` | Runs it as a role holding `SELECT` and nothing else, with `statement_timeout` set |
-| 5 | `reports/ask.py` -> `summarize_rows()` | The rows that came back -> one to three sentences |
+| 5 | `reports/chart_spec.py` | Reads the shape of the result and names the chart it should be drawn as |
+| 6 | `reports/ask.py` -> `summarize_rows()` | The rows that came back -> one to three sentences |
 
 Steps 3 and 4 are deliberately independent. The guard runs in Python and can be
 argued with in principle; the role is enforced by PostgreSQL and cannot. Neither
@@ -211,7 +295,7 @@ privilege check has no opinion about a query that returns every row of a table.
 Together they are why letting a model write SQL against this database is safe:
 only step 2 trusts the model, and only for the text of a query.
 
-The generated SQL is on screen with every answer - shown by the Ask report,
+The generated SQL is on screen with every answer - shown by the Dynamic report,
 one click away in the assistant. The query is the only way for a reader to judge
 whether the answer means what they asked, so hiding it would turn a checkable
 number into a claim. The same reasoning puts the result table directly under the
@@ -405,12 +489,18 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-67 tests, no database, no model and no Keycloak. The SQL guard, the extraction
-of SQL from a model reply and the token claim rules are pure functions, which is
-why they were written that way. The summarising step is tested with the model
-replaced: what matters there is when it is called, what it is shown and what
-happens when it fails, none of which needs a real one. Two tests check the route
-table itself, so an endpoint added without the token check fails the suite.
+110 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+of SQL from a model reply, the chart rules and the token claim rules are pure
+functions, which is why they were written that way. The summarising step is
+tested with the model replaced, and `run_query` with the cursor replaced: what
+matters in both is when the call happens, what it is shown and what happens when
+it fails, none of which needs a real one. Two tests check the route table
+itself, so an endpoint added without the token check fails the suite.
+
+The chart cases are written with the types the database actually returns -
+`Decimal` amounts, `date` objects, integer years - because the rules read Python
+types. A test built from strings and floats would pass while the real thing
+chose a table for everything.
 
 ## Schema audit
 
@@ -542,8 +632,9 @@ values the frontend uses.
   sends nothing of the conversation back, so "and their salaries?" does not
   work. Multi-turn text-to-SQL is a substantially harder problem than the
   single-question case that works today.
-- **Charts from a question.** The Ask tab returns a table; turning "investment
-  per year" into the chart it obviously wants is not built.
+- **Sharing a saved report.** Reports built on the Dynamic tab live in the browser
+  that built them. Sharing one means a table, a write endpoint and a decision
+  about who may edit whose report; printing is the answer for now.
 - **Working without a network.** Both screens need the hosted endpoint. There
   is no offline fallback, which is a deliberate choice and worth revisiting if
   a demo has to run without internet.
