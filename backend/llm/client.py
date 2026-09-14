@@ -61,6 +61,14 @@ EXPLAIN_TOKENS = 1600
 # without leaving a request hanging until the browser gives up on its own.
 DEFAULT_TIMEOUT = 60
 
+# Explaining a finding needs longer. Eight consecutive calls measured between
+# 9.6 and 48.8 seconds - the slow ones are not failures, they are the endpoint
+# under load - and cutting one off at sixty seconds would report a working
+# service as unreachable. Nobody is kept waiting by the higher number either:
+# the audit and its statements are already on screen, and only the paragraph
+# beside them is still arriving.
+EXPLAIN_TIMEOUT = 150
+
 # How long to wait before each retry when the endpoint is busy. It sends no
 # Retry-After header, so these are our own choice. They earn their keep mostly
 # in run_eval.py, which fires twenty questions back to back and would otherwise
@@ -170,9 +178,22 @@ def _attempt(url, key, payload, timeout):
             raise _Busy from error
         raise _from_http_error(error) from error
     except (urllib.error.URLError, TimeoutError, OSError) as error:
-        # No connection, a DNS failure, a proxy refusal or a timeout. Only the
-        # first of those is something the person asking can act on, so they
-        # share one line rather than each getting a message of its own.
+        # A timeout is not a connectivity problem and must not be reported as
+        # one: the request reached the endpoint, which then took too long to
+        # answer. Telling somebody to check a connection that is working sends
+        # them to debug the wrong thing, when what the endpoint is asking for
+        # is another attempt. urlopen raises it bare when the wait was for the
+        # reply, and wrapped in URLError when it was for the connection.
+        reason = getattr(error, "reason", None)
+        if isinstance(error, TimeoutError) or isinstance(reason, TimeoutError):
+            raise LLMUnavailable(
+                f"The language model did not answer within {timeout} seconds. "
+                "That usually means it is busy rather than broken - try again."
+            ) from error
+
+        # No connection, a DNS failure or a proxy refusal. Only the first is
+        # something the person asking can act on, so they share one line rather
+        # than each getting a message of its own.
         raise LLMUnavailable(
             "Could not reach the language model. Check your internet connection."
         ) from error

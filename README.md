@@ -341,6 +341,13 @@ call can fail, so the API layer never has to read an HTTP body:
 | `LLMTruncated` | The reply ran out of tokens mid-answer | 422 |
 | `LLMUnavailable` | Unreachable, timed out, or an unreadable reply | 503 |
 
+A timeout carries its own sentence, separate from an unreachable endpoint. The
+two are opposite problems - one is the endpoint being slow, the other is not
+getting there at all - and reporting a slow answer as a broken connection sends
+the reader to debug a connection that works. Calls have been measured between
+9.6 and 48.8 seconds on the same key within one minute, so slow is normal here
+and another attempt usually succeeds.
+
 Two details about the model are worth knowing before changing the settings. It
 reasons before answering and keeps that working out in a separate field, which
 never reaches the SQL parser - but it is charged for and it is slow, so a
@@ -491,14 +498,17 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-134 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+144 tests, no database, no model and no Keycloak. The SQL guard, the extraction
 of SQL from a model reply, the chart rules, the token claim rules and the block
 an audit finding is rendered into are pure functions, which is why they were
 written that way. The summarising step and the finding explanation are tested
 with the model replaced, and `run_query` with the cursor replaced: what matters
 in each is when the call happens, what it is shown and what happens when it
 fails, none of which needs a real one. Two tests check the route table itself,
-so an endpoint added without the token check fails the suite.
+so an endpoint added without the token check fails the suite, and
+`llm/test_client.py` checks the sentence each kind of failed call produces -
+every one of those is shown to a user, and a wrong one sends them to fix
+something that was never broken.
 
 The chart cases are written with the types the database actually returns -
 `Decimal` amounts, `date` objects, integer years - because the rules read Python

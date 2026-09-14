@@ -166,6 +166,7 @@ def explain_finding(finding: dict, refresh: bool = False) -> str:
         EXPLAIN_PROMPT,
         finding_as_text(finding),
         max_tokens=client.EXPLAIN_TOKENS,
+        timeout=client.EXPLAIN_TIMEOUT,
     )
     _cache[key] = explanation
     return explanation

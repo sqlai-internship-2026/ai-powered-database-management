@@ -11,6 +11,12 @@ const severityFilters = [
   { key: 'info', label: 'Info' },
 ]
 
+// Rules write relationships the way the catalog does. An arrow reads as one on
+// screen; the two characters read as code.
+function readable(text) {
+  return text.replace(/ -> /g, ' → ')
+}
+
 // The audit returns statements as text on purpose, so the only thing the page
 // can do with them is hand them to the user.
 function CopyButton({ text }) {
@@ -61,98 +67,120 @@ function Remediation({ remediation }) {
   )
 }
 
-// What the model wrote about one finding, between the rule's own reasoning and
-// the statements it suggests - which is where the question it answers sits:
-// the rationale says what is wrong, the fixes say what could be done, and this
-// says which of them to pick.
+// What the model wrote about one finding. Set apart rather than set large: it
+// is the least verifiable thing on the card and must never be mistaken for the
+// audit's own words.
 //
-// Set apart rather than set large, for the same reason the summary on the Ask
-// page is: it is the least verifiable thing on the card, and it must not be
-// mistaken for the audit's own words.
-function Explanation({ state, hasStatements }) {
-  if (state.loading) {
+// A failure here is reported and nothing else changes. The statements beside
+// it were written by the audit and need no model, so an unreachable endpoint
+// costs the reader a paragraph rather than the answer.
+function Explanation({ state, onRetry }) {
+  if (!state || state.loading) {
     return (
-      <div className="explanation explanation-pending">
+      <p className="explanation explanation-pending">
         Asking the model to explain this...
-      </div>
+      </p>
     )
   }
 
   if (state.error) {
-    // A busy endpoint or a missing key is not the audit failing: the finding
-    // and its statements are still on screen and still correct.
+    // Worth offering, because most of these are temporary: the free tier
+    // refusing a burst, a request that timed out, a connection that dropped.
+    // Nothing about the finding has changed, so the same press may well work.
     return (
-      <div className="explanation explanation-error">
-        Could not explain this one: {state.error}
+      <div className="explanation-error">
+        <p className="explanation-error-text">
+          Could not explain this one: {state.error}
+        </p>
+        <button type="button" className="explanation-retry" onClick={onRetry}>
+          Try again
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="explanation">
-      <p className="explanation-text">{state.text}</p>
+    <>
+      <p className="explanation">{state.text}</p>
       <p className="explanation-meta">
-        Written by {state.generator}.
-        {hasStatements
-          ? ' The statements below come from the audit, not from the model.'
-          : ' The model is not allowed to write SQL here.'}
+        Written by {state.generator}. The statements beside it come from the
+        audit, not from the model.
       </p>
-    </div>
+    </>
   )
 }
 
-function FindingCard({ finding, explanation, onExplain }) {
+// Closed, a finding is one line: what kind of problem it is and where. The
+// rule name is the heading because it is the only part written for a person -
+// the message names the constraint and the clause, which is the detail you
+// want once you have decided to look, not the thing you scan thirteen of.
+function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
+  const fixes = finding.remediations
+
   return (
-    <article className={`card finding severity-${finding.severity}`}>
-      <div className="finding-top">
+    <article
+      className={`card finding severity-${finding.severity} ${
+        expanded ? 'is-open' : ''
+      }`}
+    >
+      <button
+        type="button"
+        className="finding-head"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
         <span className={`badge badge-${finding.severity}`}>
           {finding.severity}
         </span>
-        <span className="finding-rule">
-          {finding.rule_id} · {finding.rule_name}
+
+        <span className="finding-head-text">
+          <span className="finding-title">{finding.rule_name}</span>
+          <span className="finding-where">{readable(finding.message)}</span>
         </span>
-        {finding.confidence === 'heuristic' ? (
-          <span className="chip">Heuristic</span>
-        ) : null}
-        {/* Gone once there is an explanation. The backend remembers what it
-            wrote, so a second press would redraw the same paragraph without
-            calling a model - a button that promises a new answer and cannot
-            give one is worse than no button. */}
-        {explanation?.text ? null : (
-          <button
-            type="button"
-            className="explain-button"
-            onClick={onExplain}
-            disabled={explanation?.loading}
-          >
-            {explanation?.loading
-              ? 'Explaining...'
-              : explanation?.error
-                ? 'Try again'
-                : 'Explain'}
-          </button>
-        )}
-      </div>
 
-      <h3 className="finding-message">{finding.message}</h3>
-      <code className="finding-target">{finding.target}</code>
-      <p className="finding-rationale">{finding.rationale}</p>
+        <span className="finding-head-meta">
+          {finding.confidence === 'heuristic' ? (
+            <span className="chip">Heuristic</span>
+          ) : null}
+          <span className="finding-fix-count">
+            {fixes.length} {fixes.length === 1 ? 'fix' : 'fixes'}
+          </span>
+          <span className="finding-toggle">
+            {expanded ? 'Close' : 'Explain'}
+          </span>
+        </span>
+      </button>
 
-      {explanation ? (
-        <Explanation
-          state={explanation}
-          hasStatements={finding.remediations.some(
-            (remediation) => remediation.ddl
-          )}
-        />
-      ) : null}
+      {expanded ? (
+        <div className="finding-body">
+          <p className="finding-object">
+            {finding.rule_id} · <code>{finding.target}</code>
+          </p>
 
-      {finding.remediations.length > 0 ? (
-        <div className="remediation-list">
-          <div className="remediation-heading">Suggested fixes</div>
-          {finding.remediations.map((remediation) => (
-            <Remediation key={remediation.label} remediation={remediation} />
-          ))}
+          <div className="finding-columns">
+            <section className="finding-column">
+              <h4 className="finding-column-heading">What this means</h4>
+              <Explanation state={explanation} onRetry={onRetry} />
+            </section>
+
+            <section className="finding-column">
+              <h4 className="finding-column-heading">How to fix it</h4>
+              {fixes.length === 0 ? (
+                <p className="explanation-meta">
+                  The audit has no statement to suggest for this one.
+                </p>
+              ) : (
+                <div className="remediation-list">
+                  {fixes.map((remediation) => (
+                    <Remediation
+                      key={remediation.label}
+                      remediation={remediation}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       ) : null}
     </article>
@@ -211,15 +239,17 @@ export default function SchemaAudit() {
   const { data: report, loading, error } = useApiData('/api/schema-audit')
   const [severity, setSeverity] = useState('all')
   const [showRules, setShowRules] = useState(false)
-  // Held by the page rather than by each card, so switching the severity
-  // filter does not throw away a paragraph that took ten seconds to arrive.
+  const [open, setOpen] = useState({})
+  // Held by the page rather than by each card, so closing a finding and
+  // opening it again does not throw away a paragraph that took ten seconds to
+  // arrive, and neither does switching the severity filter.
   const [explanations, setExplanations] = useState({})
 
   function setExplanation(key, state) {
     setExplanations((current) => ({ ...current, [key]: state }))
   }
 
-  async function explain(finding) {
+  async function requestExplanation(finding) {
     const key = findingKey(finding)
     setExplanation(key, { loading: true })
 
@@ -236,6 +266,25 @@ export default function SchemaAudit() {
     } catch (err) {
       setExplanation(key, { error: err.message })
     }
+  }
+
+  // Opening a finding shows its statements immediately - those come from the
+  // audit and need no model - and asks for the explanation to fill in beside
+  // them.
+  //
+  // A paragraph that arrived is asked for once and kept: the backend remembers
+  // what it wrote, so a second request would redraw the same text. A failure is
+  // not kept in that sense - it is not an answer, and most of them are
+  // temporary - so reopening a finding that failed tries again rather than
+  // redisplaying the error.
+  function toggle(finding) {
+    const key = findingKey(finding)
+    const isOpen = Boolean(open[key])
+    setOpen((current) => ({ ...current, [key]: !isOpen }))
+
+    const state = explanations[key]
+    if (isOpen || state?.text || state?.loading) return
+    requestExplanation(finding)
   }
 
   if (loading) {
@@ -270,7 +319,8 @@ export default function SchemaAudit() {
 
       <div className="notice">
         Read-only. The audit reads the catalog and writes out the statements it
-        would suggest - nothing is applied to the database. Review each one
+        would suggest - nothing is applied to the database. Open a finding to
+        have it explained and to see what would fix it; review every statement
         before running it.
       </div>
 
@@ -343,7 +393,9 @@ export default function SchemaAudit() {
               key={`${finding.rule_id}-${finding.target}-${index}`}
               finding={finding}
               explanation={explanations[findingKey(finding)]}
-              onExplain={() => explain(finding)}
+              expanded={Boolean(open[findingKey(finding)])}
+              onToggle={() => toggle(finding)}
+              onRetry={() => requestExplanation(finding)}
             />
           ))}
         </div>
