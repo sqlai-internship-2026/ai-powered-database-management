@@ -9,7 +9,12 @@ Run from the repository root:
 
 import pytest
 
-from reports.sql_guard import DEFAULT_MAX_ROWS, UnsafeQuery, validate_select
+from reports.sql_guard import (
+    DEFAULT_MAX_ROWS,
+    UnsafeQuery,
+    checked_select,
+    validate_select,
+)
 
 
 # --------------------------------------------------------------------------
@@ -135,3 +140,18 @@ def test_empty_query_is_refused():
 def test_refusal_message_names_the_statement():
     with pytest.raises(UnsafeQuery, match="starts with DELETE"):
         validate_select("DELETE FROM projects")
+
+
+def test_checked_select_hands_back_the_query_without_the_added_limit():
+    # The second element is what a caller counts through. It has to be free of
+    # the cap, or the count answers 500 no matter how many rows there were.
+    to_run, uncapped = checked_select("SELECT name FROM projects")
+    assert to_run == "SELECT name FROM projects\nLIMIT 500"
+    assert uncapped == "SELECT name FROM projects"
+
+
+def test_a_limit_the_caller_wrote_is_kept_in_both():
+    # Nothing was added, so there is nothing to strip - and counting past a
+    # limit somebody asked for would answer a question nobody posed.
+    to_run, uncapped = checked_select("SELECT name FROM projects LIMIT 10")
+    assert to_run == uncapped == "SELECT name FROM projects LIMIT 10"

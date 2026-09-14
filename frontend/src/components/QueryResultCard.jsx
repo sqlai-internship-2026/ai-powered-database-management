@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AutoChart from './charts/AutoChart'
 import { downloadCsv } from '../utils/csv'
+import { describeRowCount } from '../utils/format'
 
 // One answered question: its title, the sentence describing it, the chart, the
 // query that produced it and the rows behind it.
@@ -75,10 +76,11 @@ export default function QueryResultCard({
             <h3 className="report-card-title">{card.title}</h3>
           )}
           <p className="report-card-description">
-            {card.row_count} {card.row_count === 1 ? 'row' : 'rows'}
-            {card.truncated
-              ? ' - cut off at the row limit, so the answer may be incomplete'
-              : ''}
+            {describeRowCount({
+              rowCount: card.row_count,
+              truncated: card.truncated,
+              totalRows: card.total_rows,
+            })}
             {chart?.reason ? ` - ${chart.reason}` : ''}
           </p>
         </div>

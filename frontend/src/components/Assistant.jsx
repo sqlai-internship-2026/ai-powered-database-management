@@ -3,6 +3,7 @@ import AutoChart from './charts/AutoChart'
 import PageHeader from './PageHeader'
 import ResultTable from './ResultTable'
 import { apiPost, useApiData } from '../utils/api'
+import { describeRowCount } from '../utils/format'
 
 // Ask a question in English, read the answer in English, check it against the
 // table underneath. Sits at the bottom of the dashboard: the figures above are
@@ -62,8 +63,11 @@ function Answer({ data }) {
 
       <div className="chat-meta">
         <span>
-          {data.row_count} {data.row_count === 1 ? 'row' : 'rows'}
-          {data.truncated ? ' - cut off at the row limit' : ''}
+          {describeRowCount({
+            rowCount: data.row_count,
+            truncated: data.truncated,
+            totalRows: data.total_rows,
+          })}
         </span>
         <button
           type="button"

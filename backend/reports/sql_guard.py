@@ -134,6 +134,21 @@ def validate_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS) -> str:
     The returned string is the caller's SQL with any trailing semicolon removed
     and a LIMIT appended when it had none.
     """
+    return checked_select(sql, max_rows)[0]
+
+
+def checked_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS):
+    """The same check as validate_select, returning (to_run, uncapped).
+
+    The second element is the validated query without the LIMIT this module
+    added, which is what a caller needs to ask how many rows the query would
+    have returned had it not been capped. It has passed every check above, so
+    counting through it trusts the text no further than running it does.
+
+    When the caller's own SQL already carried a LIMIT the two are identical:
+    that limit was asked for, and counting past it would answer a question
+    nobody posed.
+    """
     if not sql or not sql.strip():
         raise UnsafeQuery("The model returned an empty query.")
 
@@ -174,6 +189,6 @@ def validate_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS) -> str:
     # on the read-only role is what actually protects the server.
     original = sql.strip().rstrip(";").rstrip()
     if not re.search(r"\blimit\b", lowered):
-        return f"{original}\nLIMIT {max_rows}"
+        return f"{original}\nLIMIT {max_rows}", original
 
-    return original
+    return original, original
