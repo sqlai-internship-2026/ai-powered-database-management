@@ -1682,6 +1682,35 @@ td.meter-column,
   transition: opacity 0.15s ease;
 }
 
+/* Under a long result. Shown only past one page, so it never appears under a
+   three row answer where it would be furniture rather than information. */
+.table-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.table-pager-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-pager-page {
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+  text-align: center;
+}
+
+.table-pager-range {
+  font-variant-numeric: tabular-nums;
+}
+
 .icon-button {
   width: 26px;
   height: 26px;
@@ -1777,10 +1806,11 @@ td.meter-column,
   .builder-status,
   .chart-controls,
   .card-footer,
-  .copy-button,
-  .finding-toggle,
-  .finding-fix-count,
-  .explanation-retry {
+  /* The buttons are useless on paper. The range beside them is not: it is the
+     printed page saying which rows it holds, and dropping it would leave a
+     reader to assume the table is the whole result. */
+  .table-pager-controls,
+  .copy-button {
     display: none !important;
   }
 

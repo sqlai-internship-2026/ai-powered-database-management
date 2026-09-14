@@ -34,6 +34,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import psycopg
+
 # Imported normally by the API (uvicorn puts backend/ on the path). Run as a
 # script it has to find backend/ itself.
 if __name__ == "__main__":
@@ -43,7 +45,7 @@ from db import readonly_cursor  # noqa: E402
 from llm import client  # noqa: E402
 from reports.chart_spec import choose_chart  # noqa: E402
 from reports.schema_context import build_schema_context  # noqa: E402
-from reports.sql_guard import UnsafeQuery, validate_select  # noqa: E402
+from reports.sql_guard import UnsafeQuery, checked_select  # noqa: E402
 
 # Same cap the guard applies. Kept here too because the answer says whether the
 # result was cut off, and that needs the number.
@@ -300,6 +302,31 @@ def _jsonable(value):
     return value
 
 
+def _total_rows(uncapped: str):
+    """How many rows the query would have returned without the row cap.
+
+    Only worth asking when the cap was actually reached. Below it the count is
+    len(rows) already, and a second round trip on every question that never
+    came near 500 would be spent for nothing.
+
+    Returns None when the count itself fails - a wide query hitting the five
+    second timeout is the likely case. The rows are in hand by then, and losing
+    a complete answer over a missing label would be the wrong trade; the caller
+    falls back to saying the result was cut off without saying by how much.
+
+    Runs on its own connection rather than reusing the cursor that fetched the
+    rows: a failed statement aborts its transaction, and nothing else should
+    have to care that a label was unavailable.
+    """
+    try:
+        with readonly_cursor() as cur:
+            cur.execute(f"SELECT count(*) AS total FROM ({uncapped}) AS _counted")
+            row = cur.fetchone()
+            return int(row["total"]) if row else None
+    except psycopg.Error:
+        return None
+
+
 def run_query(sql: str, question: str = "", summarize: bool = False) -> dict:
     """Runs SQL nobody in this repository wrote, and describes what came back.
 
@@ -318,7 +345,7 @@ def run_query(sql: str, question: str = "", summarize: bool = False) -> dict:
     it for wording like "as a pie chart" - but it is not required, and nothing
     here sends it to the model unless summarize is on.
     """
-    safe = validate_select(sql, MAX_ROWS)
+    safe, uncapped = checked_select(sql, MAX_ROWS)
 
     with readonly_cursor() as cur:
         cur.execute(safe)
@@ -326,6 +353,10 @@ def run_query(sql: str, question: str = "", summarize: bool = False) -> dict:
         # Taken from the cursor rather than from the first row, so an empty
         # result still knows its own columns and the table renders its header.
         columns = [column.name for column in cur.description or []]
+
+    # Hitting the cap exactly is the only signal available without asking a
+    # second question; it may be a false alarm on a result of exactly 500.
+    truncated = len(rows) >= MAX_ROWS
 
     return {
         "question": question,
@@ -335,9 +366,11 @@ def run_query(sql: str, question: str = "", summarize: bool = False) -> dict:
             {key: _jsonable(value) for key, value in row.items()} for row in rows
         ],
         "row_count": len(rows),
-        # Hitting the cap exactly is the only signal available without running
-        # the query twice; it may be a false alarm on a result of exactly 500.
-        "truncated": len(rows) >= MAX_ROWS,
+        "truncated": truncated,
+        # How many rows there were before the cap, so the screen can say "the
+        # first 500 of 3,412" instead of "this may be incomplete". None when
+        # the count was not asked for or could not be answered.
+        "total_rows": _total_rows(uncapped) if truncated else len(rows),
         # How to draw it. Chosen from the rows as the database returned them,
         # before _jsonable flattens a Decimal into a float and a date into a
         # string, because those are the types the rules read.
