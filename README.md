@@ -304,6 +304,38 @@ number into a claim. The same reasoning puts the result table directly under the
 sentence: the sentence is written by a model and can be wrong in a way the rows
 cannot.
 
+### Long results
+
+A generated query is capped at 500 rows by the guard, and the rows that do come
+back are paged **fifty at a time in the browser** by `ResultTable`.
+
+Paging in the browser rather than with `OFFSET` is what makes it correct. The
+SQL was written by a model, so it carries no guaranteed `ORDER BY`, and without
+one PostgreSQL is free to order a second read differently - the same row landing
+on two pages, another on none, and nothing on screen to tell a reader which
+happened. Paging over rows already in hand cannot do that. The pager is hidden
+below one page: "1 of 1" under a three row answer is furniture, not information.
+
+When the cap is reached the answer also carries the real total, so the line
+under it reads `first 500 of 3,412 rows` rather than "this may be incomplete" -
+the difference between knowing you have most of the answer and knowing you have
+a sliver of it. That count is asked for **only** when the cap was hit; below it
+the number is `len(rows)` already, and a second round trip on every ordinary
+question would buy nothing. It runs on its own connection, because a statement
+that fails aborts its transaction and nothing else should have to care that a
+label was unavailable, and a count that cannot be answered - a wide query
+meeting the five second timeout is the usual reason - gives up rather than
+taking the answer down with it. `describeRowCount` in `utils/format.js` writes
+all three cases.
+
+Counting needs the query without the cap, which is why `sql_guard` grew
+`checked_select`: it returns the approved statement both with and without the
+`LIMIT` the module appended, since counting through the capped form would answer
+500 every time. The uncapped form has passed every check the capped one did, so
+counting through it trusts the text no further than running it does. A `LIMIT`
+the caller wrote is left alone in both - that limit was asked for, and counting
+past it would answer a question nobody posed.
+
 ### Two model calls, failing differently
 
 Writing the query and describing the result are separate requests, and they are
@@ -498,7 +530,7 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-144 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+149 tests, no database, no model and no Keycloak. The SQL guard, the extraction
 of SQL from a model reply, the chart rules, the token claim rules and the block
 an audit finding is rendered into are pure functions, which is why they were
 written that way. The summarising step and the finding explanation are tested
