@@ -61,6 +61,21 @@ export function formatMonths(value) {
   return `${numberFormatter.format(value)} mo`
 }
 
+// What a result says about its own size, for the line under an answer.
+//
+// Three shapes, because three things can be true. Under the cap the count is
+// the whole story. At the cap the reader needs to know what is missing, and a
+// bare "may be incomplete" does not tell them whether they are looking at most
+// of the answer or a sliver of it. When the total could not be counted - a
+// wide query timing out is the usual reason - saying so is better than a
+// number nobody checked.
+export function describeRowCount({ rowCount, truncated, totalRows }) {
+  const rows = `${formatNumber(rowCount)} ${rowCount === 1 ? 'row' : 'rows'}`
+  if (!truncated) return rows
+  if (totalRows) return `first ${formatNumber(rowCount)} of ${formatNumber(totalRows)} rows`
+  return `${rows} - cut off at the row limit, so the answer may be incomplete`
+}
+
 export function formatDate(isoDate) {
   if (!isoDate) return '-'
   return isoDate

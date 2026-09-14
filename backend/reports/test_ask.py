@@ -13,6 +13,7 @@ from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
+import psycopg
 import pytest
 
 from llm import client
@@ -251,10 +252,15 @@ def test_the_summary_is_told_not_to_invent_numbers():
 
 @pytest.fixture
 def rows_from(monkeypatch):
-    """Makes readonly_cursor hand back fixed rows, and records the SQL it ran."""
-    ran = {}
+    """Makes readonly_cursor hand back fixed rows, and records the SQL it ran.
 
-    def use(columns, rows):
+    `total` stands in for the counting query run when a result hits the cap;
+    passing a callable lets a test make that count fail without the rows that
+    were already fetched being affected.
+    """
+    ran = {"all": []}
+
+    def use(columns, rows, total=None):
         @contextmanager
         def fake_cursor():
             class Cursor:
@@ -262,9 +268,15 @@ def rows_from(monkeypatch):
 
                 def execute(self, sql):
                     ran["sql"] = sql
+                    ran["all"].append(sql)
+                    if callable(total) and "count(*)" in sql:
+                        total()
 
                 def fetchall(self):
                     return rows
+
+                def fetchone(self):
+                    return {"total": total}
 
             yield Cursor()
 
@@ -313,6 +325,43 @@ def test_re_running_a_query_asks_no_model_at_all(rows_from, monkeypatch):
     # No generator either: the SQL was written once, and naming today's model
     # would credit it for a query it did not write.
     assert "generator" not in answer
+
+
+def test_a_short_result_is_never_counted_twice(rows_from):
+    # The count below the cap is len(rows) already. Asking the database again
+    # would spend a round trip on every question that never came near 500.
+    ran = rows_from(["n"], [{"n": 1}], total=1)
+    answer = run_query("SELECT 1 AS n")
+
+    assert answer["truncated"] is False
+    assert answer["total_rows"] == 1
+    assert len(ran["all"]) == 1
+
+
+def test_a_capped_result_says_how_many_rows_there_were(rows_from):
+    rows = [{"n": i} for i in range(ask.MAX_ROWS)]
+    ran = rows_from(["n"], rows, total=3412)
+    answer = run_query("SELECT n FROM wide")
+
+    assert answer["truncated"] is True
+    assert answer["row_count"] == ask.MAX_ROWS
+    assert answer["total_rows"] == 3412
+    # Counted through the query without the cap, or the answer would be 500.
+    assert "count(*)" in ran["all"][1]
+    assert "LIMIT" not in ran["all"][1]
+
+
+def test_a_failed_count_costs_the_label_and_not_the_rows(rows_from):
+    def fail():
+        raise psycopg.OperationalError("counting timed out")
+
+    rows = [{"n": i} for i in range(ask.MAX_ROWS)]
+    rows_from(["n"], rows, total=fail)
+    answer = run_query("SELECT n FROM wide")
+
+    assert answer["total_rows"] is None
+    assert answer["truncated"] is True
+    assert answer["row_count"] == ask.MAX_ROWS
 
 
 def test_a_question_still_steers_the_chart_on_a_re_run(rows_from):
