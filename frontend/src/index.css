@@ -416,6 +416,8 @@ tbody tr:hover td {
 
 .finding {
   border-left: 3px solid var(--color-border);
+  padding: 0;
+  overflow: hidden;
 }
 
 .finding.severity-error {
@@ -430,31 +432,99 @@ tbody tr:hover td {
   border-left-color: var(--color-accent);
 }
 
-.finding-top {
+/* Closed, a finding is a single row: severity, what kind of problem it is, and
+   where. Thirteen of those are scannable in a way thirteen open cards were not
+   - the page used to be one screen per finding, most of it statements nobody
+   had asked to read yet. */
+.finding-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finding-head:hover {
+  background: #f7f9fc;
+}
+
+.finding.is-open .finding-head {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.finding-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* The rule name, which is the only part of a finding written for a person. */
+.finding-title {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+/* The specific fact underneath it: which constraint, which clause. Still the
+   audit's own wording, so it is set as detail rather than as a heading. */
+.finding-where {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finding-head-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
-.finding-rule {
+.finding-fix-count {
   font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.finding-toggle {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 3px 12px;
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+
+.finding-head:hover .finding-toggle {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.finding-body {
+  padding: 16px 18px 18px;
+}
+
+.finding-object {
+  margin: 0 0 14px;
+  font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-text-muted);
-  font-weight: 600;
 }
 
-.finding-message {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 10px 0 6px;
-}
-
-.finding-target {
-  display: inline-block;
+.finding-object code {
   font-family: Consolas, "Courier New", monospace;
-  font-size: 12px;
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
   background: #f2f5f9;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -462,10 +532,81 @@ tbody tr:hover td {
   color: #3c4a5e;
 }
 
-.finding-rationale {
+/* Side by side, because the left column argues for one of the fixes in the
+   right one and the reader should be able to see both at once. On a narrower
+   screen they stack, explanation first. */
+.finding-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+
+.finding-column {
+  min-width: 0;
+}
+
+.finding-column-heading {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
   color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+/* The model's paragraph. Nothing tints it: it sits under a heading of its own
+   in a column of its own, which says where it came from more clearly than a
+   coloured box would. */
+.explanation {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.explanation-meta {
   margin: 10px 0 0;
-  max-width: 78ch;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.explanation-pending {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* A busy endpoint is not the audit failing - the statements in the next column
+   are still there and still right - so this is a warm note rather than a red
+   alarm, matching how the Ask page treats the same four errors. */
+.explanation-error {
+  background: #fdf7ec;
+  border: 1px solid #e6cfa8;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.explanation-error-text {
+  margin: 0;
+  color: #6b4f14;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.explanation-retry {
+  margin-top: 10px;
+  border: 1px solid #d9b878;
+  background: var(--color-surface);
+  color: #6b4f14;
+  border-radius: 4px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.explanation-retry:hover {
+  background: #f8eeda;
 }
 
 .remediation-list {
@@ -580,6 +721,15 @@ tbody tr:hover td {
   margin-top: 18px;
 }
 
+/* Two columns need room for a statement to sit beside a paragraph without
+   either turning into a ribbon. Below this they stack, explanation first. */
+@media (max-width: 1180px) {
+  .finding-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+
 @media (max-width: 820px) {
   .audit-toolbar {
     align-items: stretch;
@@ -588,6 +738,22 @@ tbody tr:hover td {
   .copy-button {
     position: static;
     margin: 8px 0 0 12px;
+  }
+
+  /* The row runs out of width long before the text does, so the count and the
+     button move under the title rather than squeezing it. */
+  .finding-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .finding-head-text {
+    flex-basis: 100%;
+    order: 2;
+  }
+
+  .finding-where {
+    white-space: normal;
   }
 }
 
@@ -1646,6 +1812,20 @@ td.meter-column,
   .table-pager-controls,
   .copy-button {
     display: none !important;
+  }
+
+  /* Only the findings somebody opened are printed, which is the point: an
+     audit handed to the person who has to approve the change is the two or
+     three findings being argued for, not all thirteen. */
+  .finding-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .explanation-error {
+    background: none;
+    border: none;
+    padding: 0;
   }
 
   /* Charts are the content of a printed report, not decoration. Browsers drop

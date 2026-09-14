@@ -119,10 +119,11 @@ npm run dev
 
 ## API endpoints
 
-Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`
-and `/api/reports/run`, which carry a question and a query in their bodies
-rather than a change. All of them require an `Authorization: Bearer <access
-token>` header except `/api/health`.
+Every endpoint reads and returns JSON. All are GETs except `/api/reports/ask`,
+`/api/reports/run` and `/api/schema-audit/explain`, which carry a question, a
+query and the identity of a finding in their bodies rather than a change. All
+of them require an `Authorization: Bearer <access token>` header except
+`/api/health`.
 
 | Endpoint                   | Returns                                              |
 | -------------------------- | ---------------------------------------------------- |
@@ -142,6 +143,7 @@ token>` header except `/api/health`.
 | `/api/reports/ask/examples`| Example questions, and the model that will answer them|
 | `/api/schema-audit`        | Structural findings with suggested DDL per finding    |
 | `/api/schema-audit/rules`  | The audit rule catalog                               |
+| `/api/schema-audit/explain`| POST. One finding explained in plain English, with a case for one of its fixes |
 
 Numeric and date columns are cast in SQL, so the payload contains plain numbers
 and ISO `YYYY-MM-DD` date strings.
@@ -339,6 +341,13 @@ call can fail, so the API layer never has to read an HTTP body:
 | `LLMTruncated` | The reply ran out of tokens mid-answer | 422 |
 | `LLMUnavailable` | Unreachable, timed out, or an unreadable reply | 503 |
 
+A timeout carries its own sentence, separate from an unreachable endpoint. The
+two are opposite problems - one is the endpoint being slow, the other is not
+getting there at all - and reporting a slow answer as a broken connection sends
+the reader to debug a connection that works. Calls have been measured between
+9.6 and 48.8 seconds on the same key within one minute, so slow is normal here
+and another attempt usually succeeds.
+
 Two details about the model are worth knowing before changing the settings. It
 reasons before answering and keeps that working out in a separate field, which
 never reaches the SQL parser - but it is charged for and it is slow, so a
@@ -489,13 +498,17 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-110 tests, no database, no model and no Keycloak. The SQL guard, the extraction
-of SQL from a model reply, the chart rules and the token claim rules are pure
-functions, which is why they were written that way. The summarising step is
-tested with the model replaced, and `run_query` with the cursor replaced: what
-matters in both is when the call happens, what it is shown and what happens when
-it fails, none of which needs a real one. Two tests check the route table
-itself, so an endpoint added without the token check fails the suite.
+144 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+of SQL from a model reply, the chart rules, the token claim rules and the block
+an audit finding is rendered into are pure functions, which is why they were
+written that way. The summarising step and the finding explanation are tested
+with the model replaced, and `run_query` with the cursor replaced: what matters
+in each is when the call happens, what it is shown and what happens when it
+fails, none of which needs a real one. Two tests check the route table itself,
+so an endpoint added without the token check fails the suite, and
+`llm/test_client.py` checks the sentence each kind of failed call produces -
+every one of those is shown to a user, and a wrong one sends them to fix
+something that was never broken.
 
 The chart cases are written with the types the database actually returns -
 `Decimal` amounts, `date` objects, integer years - because the rules read Python
@@ -514,6 +527,41 @@ each documented in the catalog the UI can display.
 The package never writes to the database. Findings carry **suggested DDL as
 text** with a risk level, so applying a suggestion stays a human decision -
 review every statement before running it.
+
+### Explaining a finding
+
+A finding says what is wrong and offers the statements that would fix it. What
+it cannot say is which of three defensible fixes to take, or what
+`ON DELETE RESTRICT` means to somebody who has never had to choose one. Every
+finding card carries an **Explain** button that asks the model for those few
+sentences, through `backend/schema_audit/explain.py`.
+
+Two boundaries make it safe to offer.
+
+**The model never writes SQL here.** Every statement on the page was produced by
+`rules.py`, which read the catalog and knows the real constraint names; a model
+asked to improve on that would write DDL that looks right and drops the wrong
+constraint. The prompt forbids it, and the explanation is rendered as prose
+beside the statements rather than in place of them.
+
+**The browser never chooses the text.** The request carries three identifying
+fields - rule id, target and message - and the endpoint re-runs the audit and
+matches them against its own report before anything reaches the model. A field
+that does not match a current finding is a 404, not a prompt. Accepting a
+finding from the browser instead would turn the endpoint into a way to send
+arbitrary prose to a metered API on somebody else's key.
+
+Nothing is stored: an explanation is held in memory for the life of the backend
+process, keyed by the content of the finding. So the same finding costs one
+call however many people open the page, and an explanation can never outlive
+what it describes - change the schema and the finding changes with it, so the
+key changes and the stale sentence is never shown again.
+
+The button is deliberately not automatic. The audit itself needs no API key and
+no network, and it should still load instantly and completely when the model is
+unconfigured, busy or unreachable. A failed explanation is reported on the card
+it belongs to, in the warm tone the Ask page uses for the same four errors - the
+finding and its statements are still on screen, and still right.
 
 ## Data language
 
