@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
-import { useApiData } from '../utils/api'
+import { apiPost, useApiData } from '../utils/api'
 import { formatNumber } from '../utils/format'
 
 const severityFilters = [
@@ -61,7 +61,47 @@ function Remediation({ remediation }) {
   )
 }
 
-function FindingCard({ finding }) {
+// What the model wrote about one finding, between the rule's own reasoning and
+// the statements it suggests - which is where the question it answers sits:
+// the rationale says what is wrong, the fixes say what could be done, and this
+// says which of them to pick.
+//
+// Set apart rather than set large, for the same reason the summary on the Ask
+// page is: it is the least verifiable thing on the card, and it must not be
+// mistaken for the audit's own words.
+function Explanation({ state, hasStatements }) {
+  if (state.loading) {
+    return (
+      <div className="explanation explanation-pending">
+        Asking the model to explain this...
+      </div>
+    )
+  }
+
+  if (state.error) {
+    // A busy endpoint or a missing key is not the audit failing: the finding
+    // and its statements are still on screen and still correct.
+    return (
+      <div className="explanation explanation-error">
+        Could not explain this one: {state.error}
+      </div>
+    )
+  }
+
+  return (
+    <div className="explanation">
+      <p className="explanation-text">{state.text}</p>
+      <p className="explanation-meta">
+        Written by {state.generator}.
+        {hasStatements
+          ? ' The statements below come from the audit, not from the model.'
+          : ' The model is not allowed to write SQL here.'}
+      </p>
+    </div>
+  )
+}
+
+function FindingCard({ finding, explanation, onExplain }) {
   return (
     <article className={`card finding severity-${finding.severity}`}>
       <div className="finding-top">
@@ -74,11 +114,38 @@ function FindingCard({ finding }) {
         {finding.confidence === 'heuristic' ? (
           <span className="chip">Heuristic</span>
         ) : null}
+        {/* Gone once there is an explanation. The backend remembers what it
+            wrote, so a second press would redraw the same paragraph without
+            calling a model - a button that promises a new answer and cannot
+            give one is worse than no button. */}
+        {explanation?.text ? null : (
+          <button
+            type="button"
+            className="explain-button"
+            onClick={onExplain}
+            disabled={explanation?.loading}
+          >
+            {explanation?.loading
+              ? 'Explaining...'
+              : explanation?.error
+                ? 'Try again'
+                : 'Explain'}
+          </button>
+        )}
       </div>
 
       <h3 className="finding-message">{finding.message}</h3>
       <code className="finding-target">{finding.target}</code>
       <p className="finding-rationale">{finding.rationale}</p>
+
+      {explanation ? (
+        <Explanation
+          state={explanation}
+          hasStatements={finding.remediations.some(
+            (remediation) => remediation.ddl
+          )}
+        />
+      ) : null}
 
       {finding.remediations.length > 0 ? (
         <div className="remediation-list">
@@ -132,10 +199,44 @@ function RuleCatalog() {
   )
 }
 
+// The three fields that identify one finding, which are also the three the
+// backend matches against its own audit before anything reaches the model. The
+// message is part of it because one rule can report the same object twice for
+// different reasons.
+function findingKey(finding) {
+  return `${finding.rule_id}|${finding.target}|${finding.message}`
+}
+
 export default function SchemaAudit() {
   const { data: report, loading, error } = useApiData('/api/schema-audit')
   const [severity, setSeverity] = useState('all')
   const [showRules, setShowRules] = useState(false)
+  // Held by the page rather than by each card, so switching the severity
+  // filter does not throw away a paragraph that took ten seconds to arrive.
+  const [explanations, setExplanations] = useState({})
+
+  function setExplanation(key, state) {
+    setExplanations((current) => ({ ...current, [key]: state }))
+  }
+
+  async function explain(finding) {
+    const key = findingKey(finding)
+    setExplanation(key, { loading: true })
+
+    try {
+      const result = await apiPost('/api/schema-audit/explain', {
+        rule_id: finding.rule_id,
+        target: finding.target,
+        message: finding.message,
+      })
+      setExplanation(key, {
+        text: result.explanation,
+        generator: result.generator,
+      })
+    } catch (err) {
+      setExplanation(key, { error: err.message })
+    }
+  }
 
   if (loading) {
     return (
@@ -241,6 +342,8 @@ export default function SchemaAudit() {
             <FindingCard
               key={`${finding.rule_id}-${finding.target}-${index}`}
               finding={finding}
+              explanation={explanations[findingKey(finding)]}
+              onExplain={() => explain(finding)}
             />
           ))}
         </div>

@@ -47,6 +47,16 @@ SQL_TOKENS = 1500
 # Summarising rows that are already in hand needs far less working out.
 SUMMARY_TOKENS = 400
 
+# Explaining an audit finding sits between the two. The answer is only a few
+# sentences, but the working out is a real argument - weighing three fixes
+# against each other, one of which deletes data - and that is the part the
+# budget has to cover. Four findings measured at 544, 819, 827 and 559
+# completion tokens, and a fifth overran a 900 budget outright: the spread is
+# wide because the number of fixes is. Running out costs the whole explanation
+# rather than shortening it, so this is set to roughly twice the worst measured
+# call rather than just above it.
+EXPLAIN_TOKENS = 1600
+
 # Measured at roughly 10 seconds per call. Sixty leaves room for a slow day
 # without leaving a request hanging until the browser gives up on its own.
 DEFAULT_TIMEOUT = 60

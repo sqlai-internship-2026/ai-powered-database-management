@@ -1,9 +1,10 @@
 """Read-only REST API over the management database.
 
-Nothing here writes: every endpoint reads, and the one POST carries a question
-in its body rather than a change. Reading still takes a signed-in account -
-every route below sits on a router that validates the Keycloak access token
-first (see auth.py), with /api/health as the one deliberate exception.
+Nothing here writes: every endpoint reads, and each POST carries a question, a
+saved query or the identity of an audit finding in its body rather than a
+change. Reading still takes a signed-in account - every route below sits on a
+router that validates the Keycloak access token first (see auth.py), with
+/api/health as the one deliberate exception.
 
 Numeric and date columns are cast in SQL so the JSON payload matches what the
 frontend already expects: plain numbers and ISO (YYYY-MM-DD) date strings.
@@ -34,6 +35,7 @@ from reports.ask import (
 )
 from reports.sql_guard import UnsafeQuery
 from schema_audit.engine import rule_catalog, run_audit
+from schema_audit.explain import explain_finding, find_finding
 
 app = FastAPI(title="SQL-AI API", version="0.1.0")
 
@@ -226,6 +228,38 @@ def report_portfolio(status: str | None = None):
     return portfolio_report(statuses=_status_list(status))
 
 
+# ---------------------------------------------------------------------------
+# Model failures
+#
+# Two unrelated features call a model - answering a typed question, and
+# explaining an audit finding - and both fail through the same four
+# exceptions. The status each one deserves is decided here once, so the two
+# never drift into answering differently for the same reason.
+# ---------------------------------------------------------------------------
+
+
+def _llm_failure(exc: client.LLMError) -> HTTPException:
+    """The status a failed model call deserves, carrying the client's sentence."""
+    if isinstance(exc, client.LLMRateLimited):
+        # The one the free tier produces. 429 rather than 503 because the
+        # answer is to wait, not to call somebody: a browser and a person read
+        # it the same way.
+        return HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, client.LLMTruncated):
+        # The model was answering and ran out of room. Nothing is wrong with
+        # the service, so this is not a 503; a smaller request usually works.
+        return HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, client.LLMNotConfigured):
+        # A missing or rejected key, or a model id that does not exist. The
+        # message names the .env line to fix, and no call will work until
+        # somebody does.
+        return HTTPException(status_code=503, detail=str(exc))
+    # LLMUnavailable, and anything added later. 503 is the honest answer: the
+    # service this endpoint depends on is not answering, and the request was
+    # never the problem.
+    return HTTPException(status_code=503, detail=str(exc))
+
+
 @api.get("/api/schema-audit")
 def schema_audit():
     """Structural review of the live schema, with suggested DDL per finding.
@@ -240,6 +274,61 @@ def schema_audit():
 def schema_audit_rules():
     """The rule catalog, so the UI can explain what was checked."""
     return rule_catalog()
+
+
+class ExplainFindingRequest(BaseModel):
+    """Which finding to explain, in the audit's own words.
+
+    Three identifying fields rather than the finding itself, and that is the
+    whole security argument for this endpoint. The audit is re-run below and
+    the request is matched against its output, so the text that reaches the
+    model is text this server wrote. Accepting a finding from the browser
+    instead would turn the endpoint into a way to send arbitrary prose to a
+    metered API on somebody else's key.
+
+    The message is matched as well as the rule and the target, because one
+    rule can report the same object twice for different reasons.
+    """
+
+    rule_id: str = Field(min_length=1, max_length=20)
+    target: str = Field(min_length=1, max_length=500)
+    message: str = Field(min_length=1, max_length=1000)
+
+
+@api.post("/api/schema-audit/explain")
+def schema_audit_explain(request: ExplainFindingRequest):
+    """Explains one finding in plain English and argues for one of its fixes.
+
+    Still read-only in both directions: the audit reads the catalog, and the
+    model is handed a finding and forbidden from writing SQL. The statements
+    on the page are the ones rules.py produced, before and after.
+
+    Re-running the whole audit to answer one question costs a few catalog
+    queries - the same ones the page already paid for on load. That is the
+    price of not trusting the browser with the text, and it is a cheap one.
+    """
+    report = run_audit()
+    finding = find_finding(
+        report["findings"], request.rule_id, request.target, request.message
+    )
+    if finding is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "That finding is not in the current audit. The schema may have "
+                "changed since this page was loaded - refresh and try again."
+            ),
+        )
+
+    try:
+        explanation = explain_finding(finding)
+    except client.LLMError as exc:
+        raise _llm_failure(exc)
+
+    # The model travels with the sentence, as it does with an answer on the
+    # Ask page, so a reader can see what wrote it without knowing what .env
+    # said that day.
+    return {"explanation": explanation, "generator": client.model_name()}
 
 
 # ---------------------------------------------------------------------------
@@ -286,8 +375,8 @@ def _answered(build):
     Shared by the two endpoints below because they fail in exactly the same
     ways: both hand untrusted SQL to the guard and to a role that can only
     read, and both would otherwise repeat this ladder verbatim. Only the model
-    branches are specific to asking - a re-run never calls one, so those simply
-    never fire there.
+    branch is specific to asking - a re-run never calls one, so it simply never
+    fires there.
     """
     try:
         return build()
@@ -297,25 +386,9 @@ def _answered(build):
         raise HTTPException(
             status_code=422, detail=f"The generated query was refused. {exc}"
         )
-    except client.LLMRateLimited as exc:
-        # The one the free tier produces. 429 rather than 503 because the
-        # answer is to wait, not to call somebody: a browser and a person read
-        # it the same way.
-        raise HTTPException(status_code=429, detail=str(exc))
-    except client.LLMTruncated as exc:
-        # The model was answering and ran out of room. Nothing is wrong with
-        # the service, so this is not a 503; a shorter question usually works.
-        raise HTTPException(status_code=422, detail=str(exc))
-    except client.LLMNotConfigured as exc:
-        # A missing or rejected key, or a model id that does not exist. The
-        # message names the .env line to fix, and no question will work until
-        # somebody does.
-        raise HTTPException(status_code=503, detail=str(exc))
     except client.LLMError as exc:
-        # LLMUnavailable and anything added later. 503 is the honest answer:
-        # the service this endpoint depends on is not answering, and the
-        # question was never the problem.
-        raise HTTPException(status_code=503, detail=str(exc))
+        # Every way a model call can fail, mapped in one place above.
+        raise _llm_failure(exc)
     except psycopg.errors.QueryCanceled:
         # statement_timeout on the read-only role fired. The query was valid;
         # it was too expensive, and the fix is a narrower question.

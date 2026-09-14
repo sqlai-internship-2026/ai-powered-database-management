@@ -72,8 +72,11 @@ export async function apiGet(path) {
   return response.json()
 }
 
-// The one non-GET call in the application: /api/reports/ask sends a question
-// in the body. It still reads nothing but rows back.
+// The non-GET calls, all of which still only read: a question to /api/reports/ask,
+// a saved query to /api/reports/run, and the identity of a finding to
+// /api/schema-audit/explain. They use POST because each sends something too
+// long or too punctuated to sit comfortably in a query string, not because any
+// of them changes anything.
 export async function apiPost(path, body) {
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
