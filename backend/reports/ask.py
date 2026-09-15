@@ -101,6 +101,11 @@ _WRITE_START = re.compile(
     re.IGNORECASE,
 )
 
+# How a sentence ends, and a statement never does: SQL ending in a full stop
+# does not parse. A reply ending like this is prose even when its first word is
+# SELECT or WITH.
+_SENTENCE_END = re.compile(r"[.!?]\s*$")
+
 
 def extract_sql(text: str) -> str:
     """The SQL inside a model reply, or NoSQLReturned carrying the model's words.
@@ -126,6 +131,25 @@ def extract_sql(text: str) -> str:
     contain a customers table" rather than a parser complaining that their
     query starts with THE.
     """
+    return located_sql(text)[0]
+
+
+def located_sql(text: str):
+    """The same search as extract_sql, returning (sql, guessed_from).
+
+    guessed_from is None when the reply leaves no doubt that the SQL is a
+    query: it sat in a fence, or it was the whole reply - the shape the prompt
+    asks for. Otherwise it is the reply the SQL was cut out of, because that cut
+    can be wrong. SELECT and WITH are English words, and each of these refusals
+    comes out of the search above as "SQL" the database cannot parse:
+
+        I can only select data from the existing tables.
+        With the tables available, I cannot answer that.
+        SELECT queries cannot modify the database. I can only read data.
+
+    answer_question keeps the reply for that case, so a refusal reaches the
+    person as the model wrote it rather than as a syntax error.
+    """
     if not text or not text.strip():
         raise NoSQLReturned("The generator returned nothing.")
 
@@ -134,16 +158,19 @@ def extract_sql(text: str) -> str:
 
     start = _LINE_START.search(candidate) or _INLINE_SELECT.search(candidate)
     if start:
-        candidate = candidate[start.start() :].strip()
-        if not candidate:
+        sql = candidate[start.start() :].strip()
+        if not sql:
             raise NoSQLReturned(
                 "The generator returned nothing that looks like a query."
             )
-        return candidate
+        whole_reply = not candidate[: start.start()].strip() and not (
+            _SENTENCE_END.search(sql)
+        )
+        return sql, None if fenced or whole_reply else text.strip()
 
     candidate = candidate.strip()
     if _WRITE_START.match(candidate):
-        return candidate
+        return candidate, None
     raise NoSQLReturned(candidate)
 
 
@@ -391,10 +418,20 @@ def answer_question(question: str, summarize: bool = True) -> dict:
     still leaves a complete answer behind.
 
     A database error is not caught here: the caller decides whether a broken
-    generated query is a 400 to the user or a line in an eval report.
+    generated query is a 400 to the user or a line in an eval report. The one
+    exception is SQL cut out of a sentence that the guard or the parser turns
+    down (see located_sql), which is reported as the refusal it was.
     """
     raw = generate_sql(question, schema_context())
-    answer = run_query(extract_sql(raw), question, summarize=summarize)
+    sql, guessed_from = located_sql(raw)
+    try:
+        answer = run_query(sql, question, summarize=summarize)
+    except (UnsafeQuery, psycopg.errors.SyntaxError):
+        # What failed was the model explaining itself, not a query it wrote.
+        # Its explanation is the message; the parser's complaint about it is not.
+        if guessed_from is None:
+            raise
+        raise NoSQLReturned(guessed_from) from None
     # Which model wrote the query. Travels with the answer so a report can name
     # it without the reader having to know what .env said that day. Set here
     # rather than in run_query, because a re-run has no generator: the SQL was
