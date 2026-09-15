@@ -80,3 +80,57 @@ export function formatDate(isoDate) {
   if (!isoDate) return '-'
   return isoDate
 }
+
+// The same ISO date written for a reader: "12 Mar 2026" rather than
+// "2026-03-12". Parsed by hand instead of through Date(), because
+// new Date('2026-03-12') is read as midnight UTC and comes back as the
+// eleventh for anyone west of Greenwich.
+const monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+export function formatDay(isoDate) {
+  if (!isoDate) return '-'
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate))
+  if (!match) return String(isoDate)
+  const [, year, month, day] = match
+  const name = monthNames[Number(month) - 1]
+  if (!name) return String(isoDate)
+  return `${Number(day)} ${name} ${year}`
+}
+
+// Whole days from today to an ISO date, negative once the date is behind us.
+// Both sides are taken at UTC midnight so the answer never moves with the
+// clock, and a browser in another timezone counts the same days.
+export function daysUntil(isoDate) {
+  if (!isoDate) return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate))
+  if (!match) return null
+  const [, year, month, day] = match
+  const target = Date.UTC(Number(year), Number(month) - 1, Number(day))
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((target - today) / 86400000)
+}
+
+// The two or three letters standing in for a person where there is no photo to
+// show. Keycloak usernames arrive in several shapes - "ybasaga", "yigit.han",
+// "Yigit Han" - so the split covers the separators all of them use.
+export function initials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/[\s._-]+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2)
+  return parts[0][0] + parts[1][0]
+}
