@@ -38,8 +38,9 @@ audit are read live from the database. There is no mock data in the frontend.
 │   │   └── check_model.py    Is the hosted model reachable and answering?
 │   └── schema_audit/         Structural review of the live schema
 ├── database/
-│   ├── migrations/           PostgreSQL schema and seed data
-│   └── run_seeds.ps1         Applies the seed migrations in one transaction
+│   ├── migrations/           Schema, seed data, and the read-only role
+│   ├── run_seeds.ps1         Applies the seed migrations in one transaction
+│   └── create_readonly_role.ps1  Creates the role generated SQL runs as
 ├── identity/
 │   └── keycloak/             Keycloak realm export
 └── .env.example              Template for the local .env file
@@ -59,18 +60,20 @@ cp .env.example .env
 cp frontend/.env.example frontend/.env
 ```
 
-Set at least `PGDATABASE`, `PGUSER` and `PGPASSWORD` in `.env` - the backend
-reads that file on startup. Real `.env` files are git-ignored; only the
+Set at least `PGDATABASE`, `PGUSER`, `PGPASSWORD` and `PG_READONLY_PASSWORD` in
+`.env` - the backend reads that file on startup. Real `.env` files are git-ignored; only the
 `.env.example` templates are committed.
 
 ## 2. Prepare the database
 
-Create the database once, apply the schema, then the seed data:
+Create the database once, apply the schema, then the seed data and the
+read-only role:
 
 ```powershell
 createdb -U postgres savunma_db
 psql -U postgres -d savunma_db -f database\migrations\001_initial_schema.sql
 powershell -ExecutionPolicy Bypass -File database\run_seeds.ps1
+powershell -ExecutionPolicy Bypass -File database\create_readonly_role.ps1
 ```
 
 `run_seeds.ps1` runs every seed file inside a single transaction and prints the
@@ -87,6 +90,17 @@ span 2019-2026 so the reporting screens have a real time series, and the figures
 are deliberately uneven - two programs are over budget, one is past its end
 date, the Planning ones have barely spent anything - because evenly distributed
 data produces reports that say nothing.
+
+`create_readonly_role.ps1` creates `sqlai_readonly`, the role every generated
+query runs as: `SELECT` on every table and nothing else, a 5 second
+`statement_timeout`, and sessions that start read-only. Without it Ask and the
+Dynamic report cannot run a query. It reads `PG_READONLY_PASSWORD` from `.env`,
+so set that first.
+
+It is **re-runnable** too. The SQL describes what the role holds instead of
+adding to it - it revokes before it grants, so a privilege added by hand does
+not survive a run - and it executes in a single transaction, printing the
+role's privileges as read back from the catalog at the end.
 
 ## 3. Start the backend
 
