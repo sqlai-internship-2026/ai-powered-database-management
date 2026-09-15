@@ -1,11 +1,23 @@
 import { useMemo, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import QueryResultCard from '../../components/QueryResultCard'
+import StateBlock from '../../components/StateBlock'
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  RefreshIcon,
+  SaveIcon,
+  SparkIcon,
+  TrashIcon,
+} from '../../components/icons'
 import { apiPost, useApiData } from '../../utils/api'
 import {
   deleteReport,
   listReports,
   loadReport,
   newId,
+  reportSignature,
   saveReport,
   storageAvailable,
 } from '../../utils/savedReports'
@@ -18,12 +30,18 @@ import {
 // accumulate into a report with a title, which can be saved, reopened and
 // printed.
 //
+// The screen is three places rather than one scroll: the question box, the
+// result that just came back, and the report being built out of the ones worth
+// keeping. They were a single column before, which read as one long flow and
+// left no answer to "which of these is mine and which is the report's?".
+//
 // What is kept is the query, not the rows. Reopening a report runs each card's
 // SQL again through /api/reports/run, so the figures are today's - and no model
 // is involved, which is what makes reopening instant and free. The question is
 // stored beside the SQL only so the card can still say what was asked.
 
 const emptyReport = { id: null, title: '', description: '' }
+const EMPTY_SIGNATURE = reportSignature({ title: '', description: '', cards: [] })
 
 export default function AskReport() {
   const { data: examples } = useApiData('/api/reports/ask/examples')
@@ -37,11 +55,27 @@ export default function AskReport() {
   const [cards, setCards] = useState([])
   const [saved, setSaved] = useState(() => listReports())
   const [status, setStatus] = useState(null)
+  // The report as it stood the last time it was written to storage. Everything
+  // "unsaved changes" means is a comparison against this.
+  const [savedSignature, setSavedSignature] = useState(EMPTY_SIGNATURE)
+  const [confirm, setConfirm] = useState(null)
 
   // Checked once. A browser that refuses storage will refuse it all afternoon,
   // and the answer belongs next to the Save button rather than behind it.
   const canStore = useMemo(() => storageAvailable(), [])
-  const dirty = cards.length > 0
+
+  const hasCards = cards.length > 0
+  // Not "are there cards?", which is what this used to be: a report opened from
+  // storage and left alone had cards and nothing to save, and a saved report
+  // whose title or card order had since been changed had cards and something
+  // to save. Both looked identical. The signature covers the title, the
+  // description, the order of the cards and how each one is drawn.
+  const signature = reportSignature({
+    title: report.title,
+    description: report.description,
+    cards,
+  })
+  const unsaved = signature !== savedSignature
 
   function cardFrom(answer, overrides = {}) {
     return {
@@ -54,10 +88,7 @@ export default function AskReport() {
     }
   }
 
-  async function ask(text) {
-    const asked = (text ?? question).trim()
-    if (asked.length < 3) return
-
+  async function ask(asked) {
     setAsking(true)
     setError(null)
     setPending(null)
@@ -70,6 +101,31 @@ export default function AskReport() {
     } finally {
       setAsking(false)
     }
+  }
+
+  // A result that has not been kept is one question away from being gone, and
+  // it used to go without a word. Asking again while one is on screen now says
+  // so first, and the safe answer is the one the dialog opens on.
+  function requestAsk(text) {
+    const asked = (text ?? question).trim()
+    if (asked.length < 3 || asking) return
+
+    if (pending) {
+      setConfirm({
+        title: 'Replace the result on screen?',
+        description:
+          'This result has not been added to the report yet. Asking another question replaces it, and getting it back means asking again.',
+        confirmLabel: 'Replace it',
+        cancelLabel: 'Keep it',
+        onConfirm: () => {
+          setConfirm(null)
+          ask(asked)
+        },
+      })
+      return
+    }
+
+    ask(asked)
   }
 
   function patchCard(id, patch) {
@@ -107,7 +163,12 @@ export default function AskReport() {
         sql: card.sql,
         question: card.question || '',
       })
-      patchCard(card.id, { ...result, loading: false, error: null })
+      // The card keeps the SQL it was saved with. The endpoint echoes back the
+      // form it actually ran - the same query, normalised - and letting that
+      // overwrite the stored text would rewrite the card's definition on every
+      // refresh, which is exactly what "unsaved changes" is watching for.
+      const { sql: _ran, ...rows } = result
+      patchCard(card.id, { ...rows, loading: false, error: null })
     } catch (err) {
       // The card keeps whatever it was showing and says what went wrong, which
       // is more useful than a card that empties itself on a network blip.
@@ -136,11 +197,33 @@ export default function AskReport() {
 
     setReport({ id: stored.id, title: stored.title, description: stored.description })
     setCards(opened)
+    setSavedSignature(reportSignature(stored))
     setPending(null)
     setStatus(null)
     // In parallel: a report holds a handful of cards, and each one is a single
     // indexed read against a five second timeout.
     opened.forEach(runCard)
+  }
+
+  // Opening another report throws away whatever is on screen, so it asks the
+  // same way asking a new question does.
+  function requestOpen(id) {
+    if (!id) return
+    if (unsaved && hasCards) {
+      setConfirm({
+        title: 'Open another report?',
+        description:
+          'The report on screen has changes that have not been saved. Opening another one discards them.',
+        confirmLabel: 'Discard and open',
+        cancelLabel: 'Stay here',
+        onConfirm: () => {
+          setConfirm(null)
+          openReport(id)
+        },
+      })
+      return
+    }
+    openReport(id)
   }
 
   function persist(asNew = false) {
@@ -158,35 +241,93 @@ export default function AskReport() {
 
     setReport({ id: stored.id, title: stored.title, description: stored.description })
     setSaved(listReports())
+    setSavedSignature(reportSignature(stored))
     setStatus(`Saved "${stored.title}" in this browser.`)
   }
 
   function discard(id) {
     deleteReport(id)
     setSaved(listReports())
-    if (report.id === id) setReport({ ...report, id: null })
-    setStatus(null)
+    if (report.id === id) {
+      setReport((current) => ({ ...current, id: null }))
+      // Nothing in storage matches what is on screen any more, so nothing on
+      // screen is saved.
+      setSavedSignature(null)
+    }
+    setStatus('The saved copy was deleted. What is on screen is still here.')
   }
 
   function startOver() {
     setReport(emptyReport)
     setCards([])
     setPending(null)
+    setSavedSignature(EMPTY_SIGNATURE)
     setStatus(null)
+  }
+
+  function requestDelete() {
+    const entry = saved.find((item) => item.id === report.id)
+    setConfirm({
+      title: 'Delete this saved report?',
+      description: `"${entry?.title || report.title || 'Untitled report'}" will be removed from this browser. The cards stay on screen, but the saved copy cannot be recovered.`,
+      confirmLabel: 'Delete it',
+      cancelLabel: 'Keep it',
+      onConfirm: () => {
+        setConfirm(null)
+        discard(report.id)
+      },
+    })
+  }
+
+  function requestClear() {
+    setConfirm({
+      title: 'Clear this report?',
+      description: unsaved
+        ? 'Every card on screen is removed and the title is cleared. These changes have not been saved, so they cannot be brought back.'
+        : 'Every card on screen is removed and the title is cleared. The saved copy stays in this browser and can be opened again.',
+      confirmLabel: 'Clear it',
+      cancelLabel: 'Keep it',
+      onConfirm: () => {
+        setConfirm(null)
+        startOver()
+      },
+    })
+  }
+
+  function requestRemoveCard(card) {
+    setConfirm({
+      title: 'Remove this card?',
+      description: `"${card.title || 'Untitled card'}" is taken out of the report. The question and its query go with it.`,
+      confirmLabel: 'Remove it',
+      cancelLabel: 'Keep it',
+      onConfirm: () => {
+        setConfirm(null)
+        setCards((current) => current.filter((entry) => entry.id !== card.id))
+      },
+    })
   }
 
   return (
     <>
-      <section className="card">
+      {/* 1. The question. Everything else on this screen comes out of it. */}
+      <section className="card ask-panel" aria-labelledby="ask-heading">
+        <h2 className="section-title" id="ask-heading">
+          Ask your data
+        </h2>
+        <p className="section-description">
+          One question at a time, in English. The query is written for you, run
+          against the database read-only, and shown with the SQL behind it.
+        </p>
+
         <form
           className="ask-form"
           onSubmit={(event) => {
             event.preventDefault()
-            ask()
+            requestAsk()
           }}
         >
           <label className="field">
-            <span className="field-label">Ask a question about the data</span>
+            <span className="visually-hidden">Ask a question about the data</span>
             <input
               type="text"
               className="ask-input"
@@ -201,22 +342,26 @@ export default function AskReport() {
             className="button button-primary"
             disabled={asking || question.trim().length < 3}
           >
+            <SparkIcon size={15} />
             {asking ? 'Asking...' : 'Ask'}
           </button>
         </form>
 
         {examples?.questions?.length ? (
           <div className="ask-examples">
-            <span className="field-label">Try one of these</span>
-            <div className="audit-filters">
+            <span className="field-label" id="ask-examples-label">
+              Try one of these
+            </span>
+            <div className="suggestion-chips" aria-labelledby="ask-examples-label">
               {examples.questions.map((example) => (
                 <button
                   key={example}
                   type="button"
-                  className="filter-button"
+                  className="suggestion-chip"
+                  disabled={asking}
                   onClick={() => {
                     setQuestion(example)
-                    ask(example)
+                    requestAsk(example)
                   }}
                 >
                   {example}
@@ -228,31 +373,68 @@ export default function AskReport() {
 
         <p className="ask-hint">
           Name a chart in the question - "as a pie chart", "over time" - and the
-          answer is drawn that way when the result supports it. Otherwise the
-          shape of the result decides, and the buttons on the card overrule it.
+          answer is drawn that way when the result supports it.
         </p>
       </section>
 
       {error ? <div className="notice ask-error">{error}</div> : null}
 
-      {/* The answer sits on its own until it is kept, so asking three questions
-          in a row does not fill a report with two of them by accident. */}
-      {pending ? (
-        <QueryResultCard
-          card={pending}
-          onTypeChange={(type) => setPending({ ...pending, type })}
-          onValueChange={(valueColumn) => setPending({ ...pending, valueColumn })}
-          actions={
-            <button type="button" className="button button-primary" onClick={addPending}>
-              Add to report
-            </button>
-          }
-        />
+      {/* 2. The answer, on its own until it is kept, so asking three questions
+             in a row does not fill a report with two of them by accident. */}
+      {asking ? (
+        <section className="preview-section" aria-labelledby="preview-heading">
+          <div className="section-head">
+            <h2 className="section-title" id="preview-heading">
+              Result preview
+            </h2>
+          </div>
+          <div className="card">
+            <StateBlock variant="loading" title="Writing the query and running it" />
+          </div>
+        </section>
+      ) : pending ? (
+        <section className="preview-section" aria-labelledby="preview-heading">
+          <div className="section-head">
+            <div>
+              <h2 className="section-title" id="preview-heading">
+                Result preview
+              </h2>
+              <p className="section-description">
+                Not part of the report yet - keep it, or ask something else.
+              </p>
+            </div>
+            <span className="badge badge-on-hold">
+              <span className="badge-dot" aria-hidden="true" />
+              Not added
+            </span>
+          </div>
+          <QueryResultCard
+            card={pending}
+            onTypeChange={(type) => setPending({ ...pending, type })}
+            onValueChange={(valueColumn) => setPending({ ...pending, valueColumn })}
+            actions={
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={addPending}
+              >
+                <PlusIcon size={15} />
+                Add to report
+              </button>
+            }
+          />
+        </section>
       ) : null}
 
-      <section className="report-builder">
+      {/* 3. The report itself: a document with a title, not a list of answers. */}
+      <section className="report-builder" aria-labelledby="builder-heading">
+        <h2 className="visually-hidden" id="builder-heading">
+          Report builder
+        </h2>
+
         <header className="builder-head">
           <div className="builder-titles">
+            <span className="builder-eyebrow">Report</span>
             <input
               className="builder-title-input"
               value={report.title}
@@ -273,13 +455,28 @@ export default function AskReport() {
             />
           </div>
 
-          <div className="builder-actions">
+          {hasCards ? (
+            <span
+              className={unsaved ? 'badge badge-on-hold' : 'badge badge-active'}
+              role="status"
+            >
+              <span className="badge-dot" aria-hidden="true" />
+              {unsaved ? 'Unsaved changes' : 'Saved in this browser'}
+            </span>
+          ) : null}
+        </header>
+
+        {/* One toolbar rather than a row of buttons that grew: what opens a
+            report on the left, what happens to this one on the right, and the
+            two that throw something away kept apart from the rest. */}
+        <div className="builder-toolbar">
+          <div className="builder-toolbar-group">
             {saved.length > 0 ? (
               <label className="field">
                 <span className="field-label">Open a saved report</span>
                 <select
                   value={report.id || ''}
-                  onChange={(event) => openReport(event.target.value)}
+                  onChange={(event) => requestOpen(event.target.value)}
                 >
                   <option value="">Select...</option>
                   {saved.map((entry) => (
@@ -290,51 +487,59 @@ export default function AskReport() {
                 </select>
               </label>
             ) : null}
+          </div>
 
+          <div className="builder-toolbar-group builder-toolbar-actions">
             <button
               type="button"
               className="button"
-              disabled={!dirty}
+              disabled={!hasCards}
               onClick={refreshAll}
             >
+              <RefreshIcon size={15} />
               Refresh
             </button>
             <button
               type="button"
               className="button button-primary"
-              disabled={!dirty || !canStore}
+              disabled={!hasCards || !canStore}
               onClick={() => persist(false)}
             >
+              <SaveIcon size={15} />
               {report.id ? 'Save' : 'Save report'}
             </button>
             {report.id ? (
-              <>
-                <button
-                  type="button"
-                  className="button"
-                  disabled={!canStore}
-                  onClick={() => persist(true)}
-                >
-                  Save as new
-                </button>
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => discard(report.id)}
-                >
-                  Delete
-                </button>
-              </>
+              <button
+                type="button"
+                className="button"
+                disabled={!canStore}
+                onClick={() => persist(true)}
+              >
+                Save as new
+              </button>
             ) : null}
-            {dirty ? (
-              <button type="button" className="button" onClick={startOver}>
+
+            {report.id || hasCards ? (
+              <span className="toolbar-divider" aria-hidden="true" />
+            ) : null}
+
+            {report.id ? (
+              <button type="button" className="button button-danger" onClick={requestDelete}>
+                <TrashIcon size={15} />
+                Delete
+              </button>
+            ) : null}
+            {hasCards ? (
+              <button type="button" className="button button-danger" onClick={requestClear}>
                 Clear
               </button>
             ) : null}
           </div>
-        </header>
+        </div>
 
-        {status ? <p className="builder-status">{status}</p> : null}
+        <p className="builder-status" role="status" aria-live="polite">
+          {status}
+        </p>
 
         {!canStore ? (
           <p className="builder-note">
@@ -349,10 +554,12 @@ export default function AskReport() {
         )}
 
         {cards.length === 0 ? (
-          <p className="chart-empty">
-            No cards yet. Ask a question above, then keep the answers worth
-            keeping - they become a report you can name, save and print.
-          </p>
+          <div className="card">
+            <StateBlock
+              title="No cards yet"
+              text="Ask a question above, then keep the answers worth keeping - they become a report you can name, save and print."
+            />
+          </div>
         ) : (
           <div className="report-body">
             {cards.map((card, index) => (
@@ -367,37 +574,34 @@ export default function AskReport() {
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label="Move card up"
+                      aria-label={`Move "${card.title}" up`}
                       disabled={index === 0}
                       onClick={() => moveCard(card.id, -1)}
                     >
-                      ↑
+                      <ChevronUpIcon size={14} />
                     </button>
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label="Move card down"
+                      aria-label={`Move "${card.title}" down`}
                       disabled={index === cards.length - 1}
                       onClick={() => moveCard(card.id, 1)}
                     >
-                      ↓
+                      <ChevronDownIcon size={14} />
                     </button>
                     <button
                       type="button"
-                      className="button"
+                      className="button button-sm"
                       disabled={card.loading}
                       onClick={() => runCard(card)}
                     >
+                      <RefreshIcon size={14} />
                       {card.loading ? 'Running...' : 'Refresh'}
                     </button>
                     <button
                       type="button"
-                      className="button"
-                      onClick={() =>
-                        setCards((current) =>
-                          current.filter((entry) => entry.id !== card.id),
-                        )
-                      }
+                      className="button button-sm button-danger"
+                      onClick={() => requestRemoveCard(card)}
                     >
                       Remove
                     </button>
@@ -408,6 +612,16 @@ export default function AskReport() {
           </div>
         )}
       </section>
+
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        title={confirm?.title}
+        description={confirm?.description}
+        confirmLabel={confirm?.confirmLabel}
+        cancelLabel={confirm?.cancelLabel}
+        onConfirm={confirm?.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </>
   )
 }

@@ -86,6 +86,22 @@ export function saveReport({ id, title, description, cards }) {
   return write(reports) ? saved : null
 }
 
+// What the report currently is, reduced to the parts that get stored. Two
+// reports with the same signature would save identically, so comparing the
+// signature on screen with the one taken at the last save is what "unsaved
+// changes" actually means: a renamed report, a reordered card or a chart type
+// somebody switched all change it, and merely having cards does not.
+//
+// It reads the same definitionOf as saveReport, so it can never drift from
+// what is written to storage.
+export function reportSignature({ title, description, cards }) {
+  return JSON.stringify({
+    title: title?.trim() || '',
+    description: description?.trim() || '',
+    cards: (cards || []).map(definitionOf),
+  })
+}
+
 export function deleteReport(id) {
   return write(read().filter((report) => report.id !== id))
 }
