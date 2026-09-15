@@ -25,8 +25,10 @@ from reports.ask import (
     SUMMARY_ROWS,
     NoSQLReturned,
     _jsonable,
+    answer_question,
     example_questions,
     extract_sql,
+    located_sql,
     run_query,
     summarize_rows,
 )
@@ -127,6 +129,117 @@ def test_a_second_statement_survives_extraction():
     # Cutting at the first semicolon would hide it; the guard has to see it.
     reply = "```sql\nSELECT 1; DROP TABLE projects\n```"
     assert "DROP TABLE" in extract_sql(reply)
+
+
+# --------------------------------------------------------------------------
+# Refusals cut into SQL
+#
+# SELECT and WITH are English words, so a refusal can be cut into something
+# shaped like a query. Run against the database, every refusal below failed as
+# a syntax error, which is what the fake cursor raises.
+# --------------------------------------------------------------------------
+
+REFUSALS = [
+    "I can only select data from the existing tables.",
+    "With the tables available, I cannot answer that.",
+    "SELECT queries cannot modify the database. I can only read data.",
+    "I would need to select from a customers table, which does not exist",
+]
+
+
+def test_sql_in_a_fence_is_not_a_guess():
+    assert located_sql("```sql\nSELECT 1\n```") == ("SELECT 1", None)
+
+
+def test_a_reply_that_is_only_a_query_is_not_a_guess():
+    reply = "SELECT name FROM projects;"
+    assert located_sql(reply) == (reply, None)
+
+
+def test_a_write_statement_is_not_a_guess():
+    assert located_sql("DELETE FROM employees") == ("DELETE FROM employees", None)
+
+
+def test_a_query_cut_out_of_a_sentence_is_a_guess():
+    reply = "Sure! The query is: SELECT name FROM projects"
+    assert located_sql(reply) == ("SELECT name FROM projects", reply)
+
+
+@pytest.mark.parametrize("reply", REFUSALS)
+def test_every_refusal_shaped_like_sql_is_a_guess(reply):
+    assert located_sql(reply)[1] == reply
+
+
+@pytest.fixture
+def asked(monkeypatch):
+    """Makes the model reply with fixed text, and the database fail on demand.
+
+    `fails` is raised by the cursor when it runs anything; without it the query
+    runs and returns one row. Returns the list of SQL the cursor was given.
+    """
+    ran = []
+
+    def use(reply, fails=None):
+        monkeypatch.setattr(ask, "schema_context", lambda refresh=False: "schema")
+        monkeypatch.setattr(ask, "generate_sql", lambda question, context: reply)
+
+        @contextmanager
+        def fake_cursor():
+            class Cursor:
+                description = [SimpleNamespace(name="name")]
+
+                def execute(self, sql):
+                    ran.append(sql)
+                    if fails is not None:
+                        raise fails
+
+                def fetchall(self):
+                    return [{"name": "Radar"}]
+
+            yield Cursor()
+
+        monkeypatch.setattr(ask, "readonly_cursor", fake_cursor)
+        return ran
+
+    return use
+
+
+@pytest.mark.parametrize("reply", REFUSALS)
+def test_a_refusal_the_database_cannot_parse_is_shown_as_written(asked, reply):
+    asked(reply, fails=psycopg.errors.SyntaxError('syntax error at or near "tables"'))
+    with pytest.raises(NoSQLReturned) as raised:
+        answer_question("How many customers bought a radar?", summarize=False)
+    assert str(raised.value) == reply
+
+
+def test_a_refusal_the_guard_turns_down_is_shown_as_written(asked):
+    # Cut at "select" this is two statements, one of them naming DELETE: the
+    # guard refuses it before the database sees anything.
+    reply = "I can only select data; I cannot delete it."
+    ran = asked(reply)
+    with pytest.raises(NoSQLReturned) as raised:
+        answer_question("Delete the employees who left", summarize=False)
+    assert str(raised.value) == reply
+    assert ran == []
+
+
+def test_a_query_the_model_answered_with_keeps_its_database_error(asked):
+    asked("SELECT nme FROM projects", fails=psycopg.errors.SyntaxError("syntax error"))
+    with pytest.raises(psycopg.errors.SyntaxError):
+        answer_question("List the projects", summarize=False)
+
+
+def test_a_fenced_query_keeps_the_guard_message(asked):
+    asked("```sql\nSELECT 1; DROP TABLE projects\n```")
+    with pytest.raises(UnsafeQuery):
+        answer_question("List the projects", summarize=False)
+
+
+def test_a_query_cut_out_of_a_sentence_still_runs(asked):
+    ran = asked("Sure! The query is: SELECT name FROM projects")
+    answer = answer_question("List the projects", summarize=False)
+    assert answer["rows"] == [{"name": "Radar"}]
+    assert ran[0].startswith("SELECT name FROM projects")
 
 
 # --------------------------------------------------------------------------
