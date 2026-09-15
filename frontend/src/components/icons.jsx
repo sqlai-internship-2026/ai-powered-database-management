@@ -271,3 +271,140 @@ export function CheckCircleIcon(props) {
     </Icon>
   )
 }
+
+/* ---------- Analysis screens ---------- */
+
+export function PrinterIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M7 9V4.5A.5.5 0 0 1 7.5 4h9a.5.5 0 0 1 .5.5V9" />
+      <path d="M7 17H5.5A1.5 1.5 0 0 1 4 15.5v-5A1.5 1.5 0 0 1 5.5 9h13a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H17" />
+      <rect x="7" y="14" width="10" height="6" rx="1" />
+    </Icon>
+  )
+}
+
+export function DownloadIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4v10" />
+      <path d="m8 10.5 4 4 4-4" />
+      <path d="M4.5 18.5h15" />
+    </Icon>
+  )
+}
+
+export function CopyIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="9" y="9" width="11" height="11" rx="1.8" />
+      <path d="M15 6.5V5.8A1.8 1.8 0 0 0 13.2 4H5.8A1.8 1.8 0 0 0 4 5.8v7.4A1.8 1.8 0 0 0 5.8 15h.7" />
+    </Icon>
+  )
+}
+
+export function CheckIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7" />
+    </Icon>
+  )
+}
+
+export function PlusIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  )
+}
+
+export function TrashIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 6.5h15" />
+      <path d="M9.5 6.5V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5" />
+      <path d="M6.5 6.5 7.3 19a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12.5" />
+      <path d="M10.5 10v6.5M13.5 10v6.5" />
+    </Icon>
+  )
+}
+
+export function RefreshIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+      <path d="M19.5 4.5V9H15" />
+    </Icon>
+  )
+}
+
+export function SaveIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M5.5 4h9.8L20 8.7v9.8A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4Z" />
+      <path d="M8 4v5h6V4" />
+      <rect x="8" y="13" width="8" height="7" rx="1" />
+    </Icon>
+  )
+}
+
+export function TableIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="5" width="17" height="14" rx="1.8" />
+      <path d="M3.5 9.5h17" />
+      <path d="M9.5 9.5V19" />
+    </Icon>
+  )
+}
+
+export function ChartIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20V4" />
+      <path d="M4 20h16" />
+      <rect x="7.5" y="12" width="3.2" height="5" rx="0.8" />
+      <rect x="13.5" y="8" width="3.2" height="9" rx="0.8" />
+    </Icon>
+  )
+}
+
+export function CodeIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="m8.5 8.5-4 3.5 4 3.5" />
+      <path d="m15.5 8.5 4 3.5-4 3.5" />
+      <path d="m13.5 5-3 14" />
+    </Icon>
+  )
+}
+
+export function InfoIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.8h.01" />
+    </Icon>
+  )
+}
+
+export function LockIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="10.5" width="14" height="9.5" rx="1.8" />
+      <path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
+    </Icon>
+  )
+}
+
+export function FilterIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M10 18h4" />
+    </Icon>
+  )
+}

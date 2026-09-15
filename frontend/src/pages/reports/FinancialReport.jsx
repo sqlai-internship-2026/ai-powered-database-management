@@ -2,9 +2,18 @@ import { useOutletContext } from 'react-router-dom'
 import StatCard from '../../components/StatCard'
 import StatusBadge from '../../components/StatusBadge'
 import ReportCard from '../../components/ReportCard'
+import ReportBody from '../../components/ReportBody'
+import StateBlock from '../../components/StateBlock'
 import BarChart from '../../components/charts/BarChart'
 import ColumnChart from '../../components/charts/ColumnChart'
 import Meter, { meterState } from '../../components/charts/Meter'
+import {
+  AlertIcon,
+  BudgetIcon,
+  CheckCircleIcon,
+  GaugeIcon,
+  InvestmentsIcon,
+} from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
 import {
   formatCompactCurrency,
@@ -74,41 +83,60 @@ export default function FinancialReport() {
   const { data, loading, error } = useApiData(`/api/reports/financial${query}`)
 
   if (error) {
-    return <div className="card placeholder">Could not load the report: {error}</div>
+    return (
+      <div className="card">
+        <StateBlock
+          variant="error"
+          title="Could not load the financial report"
+          text={error}
+        />
+      </div>
+    )
   }
   if (!data) {
-    return <div className="card placeholder">Building the financial report...</div>
+    return (
+      <div className="card">
+        <StateBlock variant="loading" title="Building the financial report" lines={6} />
+      </div>
+    )
   }
 
   const { summary, projects, trend, by_type: byType } = data
 
   return (
-    <div className={loading ? 'report-body is-refetching' : 'report-body'}>
+    <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
           label="Total Budget"
           value={formatCompactCurrency(summary.total_budget)}
           hint={`${formatNumber(summary.project_count)} programs in scope`}
+          icon={<BudgetIcon size={17} />}
+          tone="primary"
         />
         <StatCard
           label="Committed"
           value={formatCompactCurrency(summary.total_invested)}
           hint={`${formatNumber(summary.investment_count)} investment records`}
+          icon={<InvestmentsIcon size={17} />}
         />
         <StatCard
           label="Budget Utilization"
           value={formatPercent(summary.utilization)}
           hint="Committed against total budget"
+          icon={<GaugeIcon size={17} />}
         />
         <StatCard
           label="Uncommitted"
           value={formatCompactCurrency(summary.total_remaining)}
           hint="Budget not yet drawn"
+          icon={<CheckCircleIcon size={17} />}
         />
         <StatCard
           label="Over Budget"
           value={formatNumber(summary.over_budget_count)}
           hint="Programs past 100% utilization"
+          icon={<AlertIcon size={17} />}
+          tone={summary.over_budget_count > 0 ? 'danger' : 'neutral'}
         />
       </div>
 
@@ -198,6 +226,6 @@ export default function FinancialReport() {
           </table>
         </div>
       </ReportCard>
-    </div>
+    </ReportBody>
   )
 }

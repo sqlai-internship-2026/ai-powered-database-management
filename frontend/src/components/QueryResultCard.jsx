@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import AutoChart from './charts/AutoChart'
+import SegmentedControl from './SegmentedControl'
+import { CodeIcon, CopyIcon, DownloadIcon } from './icons'
 import { downloadCsv } from '../utils/csv'
 import { describeRowCount } from '../utils/format'
 
@@ -75,19 +77,36 @@ export default function QueryResultCard({
           ) : (
             <h3 className="report-card-title">{card.title}</h3>
           )}
+          {/* Four things can be true about a result and they are not the same
+              thing: how many rows there are, that the row limit cut it off,
+              that it is being run again, and why it was drawn the way it was. */}
           <p className="report-card-description">
-            {describeRowCount({
-              rowCount: card.row_count,
-              truncated: card.truncated,
-              totalRows: card.total_rows,
-            })}
-            {chart?.reason ? ` - ${chart.reason}` : ''}
+            <span className="result-count">
+              {describeRowCount({
+                rowCount: card.row_count,
+                truncated: card.truncated,
+                totalRows: card.total_rows,
+              })}
+            </span>
+            {card.truncated ? (
+              <span className="chip chip-risk-medium">Cut off at the row limit</span>
+            ) : null}
+            {card.loading ? (
+              <span className="chip chip-pending" role="status">
+                Running again...
+              </span>
+            ) : null}
+            {chart?.reason ? (
+              <span className="result-reason">{chart.reason}</span>
+            ) : null}
           </p>
         </div>
         <div className="report-card-actions">{actions}</div>
       </header>
 
-      {card.error ? <div className="notice ask-error">{card.error}</div> : null}
+      {card.error ? (
+        <div className="notice notice-danger card-inset">{card.error}</div>
+      ) : null}
 
       {card.answer ? <p className="chat-summary">{card.answer}</p> : null}
 
@@ -97,21 +116,16 @@ export default function QueryResultCard({
       {alternatives.length > 1 || measures.length > 1 ? (
         <div className="chart-controls">
           {alternatives.length > 1 ? (
-            <div className="view-switch" role="group" aria-label="Chart type">
-              {alternatives.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  className={
-                    activeType === name ? 'filter-button active' : 'filter-button'
-                  }
-                  aria-pressed={activeType === name}
-                  onClick={() => onTypeChange?.(name)}
-                >
-                  {TYPE_LABELS[name] || name}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              label="Chart type"
+              value={activeType}
+              size="sm"
+              options={alternatives.map((name) => ({
+                value: name,
+                label: TYPE_LABELS[name] || name,
+              }))}
+              onChange={(name) => onTypeChange?.(name)}
+            />
           ) : null}
 
           {/* Several numeric columns and one chart: the reader picks which one
@@ -144,12 +158,16 @@ export default function QueryResultCard({
         />
       </div>
 
+      {/* Below the answer and set as links: the query and the download are how
+          a reader checks or keeps a result, not what the card is for. */}
       <div className="card-footer">
         <button
           type="button"
           className="link-button chat-sql-toggle"
+          aria-expanded={showSql}
           onClick={() => setShowSql((current) => !current)}
         >
+          <CodeIcon size={14} />
           {showSql ? 'Hide SQL' : 'Show SQL'}
         </button>
         <button
@@ -164,7 +182,8 @@ export default function QueryResultCard({
             )
           }
         >
-          CSV
+          <DownloadIcon size={14} />
+          Download CSV
         </button>
       </div>
 
@@ -175,9 +194,15 @@ export default function QueryResultCard({
       {showSql ? (
         <div className="code-block">
           <button type="button" className="copy-button" onClick={copySql}>
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? 'Copied' : <CopyIcon size={13} />}
+            {copied ? null : <span className="visually-hidden">Copy the SQL</span>}
           </button>
           <pre>{card.sql}</pre>
+          {/* Announced rather than only shown: the button changing its own
+              label is invisible to a reader who is not looking at it. */}
+          <span className="visually-hidden" role="status" aria-live="polite">
+            {copied ? 'SQL copied to the clipboard' : ''}
+          </span>
         </div>
       ) : null}
     </section>

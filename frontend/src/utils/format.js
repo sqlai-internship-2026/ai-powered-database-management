@@ -134,3 +134,34 @@ export function initials(name) {
   if (parts.length === 1) return parts[0].slice(0, 2)
   return parts[0][0] + parts[1][0]
 }
+
+// An ISO timestamp written for a reader: "15 Sep 2026, 14:32". Used where the
+// page was printing the raw string the backend sent, which is accurate and
+// unreadable. The value itself is untouched - only how it is shown.
+//
+// Parsed by hand for the same reason formatDay is: the date part of an
+// ISO string must not be shifted by the reader's timezone. A timestamp that
+// carries a zone offset is handed to Date() instead, because there the offset
+// is the point.
+export function formatDateTime(isoValue) {
+  if (!isoValue) return '-'
+  const text = String(isoValue)
+  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(text)
+  if (!match) return text
+
+  const [, year, month, day, hour, minute] = match
+  const name = monthNames[Number(month) - 1]
+  if (!name) return text
+
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+    const parsed = new Date(text)
+    if (!Number.isNaN(parsed.getTime())) {
+      const local = monthNames[parsed.getMonth()]
+      const hours = String(parsed.getHours()).padStart(2, '0')
+      const minutes = String(parsed.getMinutes()).padStart(2, '0')
+      return `${parsed.getDate()} ${local} ${parsed.getFullYear()}, ${hours}:${minutes}`
+    }
+  }
+
+  return `${Number(day)} ${name} ${year}, ${hour}:${minute}`
+}

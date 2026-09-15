@@ -2,8 +2,17 @@ import { useOutletContext } from 'react-router-dom'
 import StatCard from '../../components/StatCard'
 import StatusBadge from '../../components/StatusBadge'
 import ReportCard from '../../components/ReportCard'
+import ReportBody from '../../components/ReportBody'
+import StateBlock from '../../components/StateBlock'
 import BarChart from '../../components/charts/BarChart'
 import Meter from '../../components/charts/Meter'
+import {
+  AlertIcon,
+  ClockIcon,
+  ProductsIcon,
+  ProjectsIcon,
+  BudgetIcon,
+} from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
 import {
   formatCompactCurrency,
@@ -88,10 +97,22 @@ export default function PortfolioReport() {
   const { data, loading, error } = useApiData(`/api/reports/portfolio${query}`)
 
   if (error) {
-    return <div className="card placeholder">Could not load the report: {error}</div>
+    return (
+      <div className="card">
+        <StateBlock
+          variant="error"
+          title="Could not load the portfolio report"
+          text={error}
+        />
+      </div>
+    )
   }
   if (!data) {
-    return <div className="card placeholder">Building the portfolio report...</div>
+    return (
+      <div className="card">
+        <StateBlock variant="loading" title="Building the portfolio report" lines={6} />
+      </div>
+    )
   }
 
   const {
@@ -103,32 +124,40 @@ export default function PortfolioReport() {
   } = data
 
   return (
-    <div className={loading ? 'report-body is-refetching' : 'report-body'}>
+    <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
           label="Programs"
           value={formatNumber(summary.project_count)}
           hint={`${formatNumber(summary.average_duration_months)} months average duration`}
+          icon={<ProjectsIcon size={17} />}
+          tone="primary"
         />
         <StatCard
           label="Hardware Cost"
           value={formatCompactCurrency(summary.hardware_cost)}
           hint={`${formatNumber(summary.unit_count)} units across the portfolio`}
+          icon={<BudgetIcon size={17} />}
         />
         <StatCard
           label="Catalog Items"
           value={formatNumber(summary.catalog_size)}
           hint="Products and subsystems"
+          icon={<ProductsIcon size={17} />}
         />
         <StatCard
           label="Ending Within A Year"
           value={formatNumber(summary.ending_soon_count)}
           hint="Active programs closing in 12 months"
+          icon={<ClockIcon size={17} />}
+          tone={summary.ending_soon_count > 0 ? 'warning' : 'neutral'}
         />
         <StatCard
           label="Past End Date"
           value={formatNumber(summary.overdue_count)}
           hint="Still Active or On Hold"
+          icon={<AlertIcon size={17} />}
+          tone={summary.overdue_count > 0 ? 'danger' : 'neutral'}
         />
       </div>
 
@@ -238,6 +267,6 @@ export default function PortfolioReport() {
           formatValue={formatCompactCurrency}
         />
       </ReportCard>
-    </div>
+    </ReportBody>
   )
 }

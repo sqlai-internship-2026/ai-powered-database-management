@@ -1,9 +1,18 @@
 import { useOutletContext } from 'react-router-dom'
 import StatCard from '../../components/StatCard'
 import ReportCard from '../../components/ReportCard'
+import ReportBody from '../../components/ReportBody'
+import StateBlock from '../../components/StateBlock'
 import BarChart from '../../components/charts/BarChart'
 import ColumnChart from '../../components/charts/ColumnChart'
 import Meter from '../../components/charts/Meter'
+import {
+  BudgetIcon,
+  ClockIcon,
+  DepartmentsIcon,
+  EmployeesIcon,
+  InboxIcon,
+} from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
 import {
   formatCompactCurrency,
@@ -58,10 +67,22 @@ export default function WorkforceReport() {
   const { data, loading, error } = useApiData(`/api/reports/workforce${query}`)
 
   if (error) {
-    return <div className="card placeholder">Could not load the report: {error}</div>
+    return (
+      <div className="card">
+        <StateBlock
+          variant="error"
+          title="Could not load the workforce report"
+          text={error}
+        />
+      </div>
+    )
   }
   if (!data) {
-    return <div className="card placeholder">Building the workforce report...</div>
+    return (
+      <div className="card">
+        <StateBlock variant="loading" title="Building the workforce report" lines={6} />
+      </div>
+    )
   }
 
   const { summary, departments, hires_by_year: hires, allocation, job_titles: titles } = data
@@ -69,31 +90,38 @@ export default function WorkforceReport() {
   const maxPrograms = Math.max(...allocation.map((row) => row.project_count), 1)
 
   return (
-    <div className={loading ? 'report-body is-refetching' : 'report-body'}>
+    <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
           label="Headcount"
           value={formatNumber(summary.headcount)}
           hint={`${formatNumber(summary.department_count)} staffed departments`}
+          icon={<EmployeesIcon size={17} />}
+          tone="primary"
         />
         <StatCard
           label="Annual Payroll"
           value={formatCompactCurrency(summary.total_salary)}
           hint="Sum of recorded salaries"
+          icon={<BudgetIcon size={17} />}
         />
         <StatCard
           label="Average Salary"
           value={formatCurrency(summary.average_salary)}
+          icon={<DepartmentsIcon size={17} />}
         />
         <StatCard
           label="Average Tenure"
           value={`${formatNumber(summary.average_tenure_years)} yrs`}
           hint="Since hire date"
+          icon={<ClockIcon size={17} />}
         />
         <StatCard
           label="Not On A Program"
           value={formatNumber(summary.unassigned_count)}
           hint="No project assignment"
+          icon={<InboxIcon size={17} />}
+          tone={summary.unassigned_count > 0 ? 'warning' : 'neutral'}
         />
       </div>
 
@@ -210,6 +238,6 @@ export default function WorkforceReport() {
           formatValue={formatNumber}
         />
       </ReportCard>
-    </div>
+    </ReportBody>
   )
 }

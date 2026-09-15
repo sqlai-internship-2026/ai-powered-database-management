@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import AutoChart from './charts/AutoChart'
-import PageHeader from './PageHeader'
 import ResultTable from './ResultTable'
+import { CodeIcon, SparkIcon } from './icons'
 import { apiPost, useApiData } from '../utils/api'
 import { describeRowCount } from '../utils/format'
 
@@ -75,6 +75,7 @@ function Answer({ data }) {
           aria-expanded={showSql}
           onClick={() => setShowSql((shown) => !shown)}
         >
+          <CodeIcon size={14} />
           {showSql ? 'Hide SQL' : 'Show SQL'}
         </button>
       </div>
@@ -127,10 +128,21 @@ export default function Assistant() {
 
   return (
     <section className="chat">
-      <PageHeader
-        title="Assistant"
-        description="Ask about the data in English. Each question is answered on its own - the assistant does not remember the one before it."
-      />
+      <header className="chat-head">
+        <div className="chat-head-text">
+          <h2 className="chat-title">Assistant</h2>
+          <p className="chat-description">
+            Ask about the data in English. Answers appear newest first.
+          </p>
+        </div>
+        {/* Said as a label rather than only in prose: the box looks like a
+            chat, and a reader who types "and their salaries?" needs to know
+            before they press Ask, not after the answer comes back wrong. */}
+        <span className="badge chat-scope-badge">
+          <span className="badge-dot" aria-hidden="true" />
+          One question at a time - no memory of the last one
+        </span>
+      </header>
 
       <form
         className="chat-form"
@@ -153,6 +165,7 @@ export default function Assistant() {
           className="button button-primary"
           disabled={asking || question.trim().length < 3}
         >
+          <SparkIcon size={15} />
           {asking ? 'Asking...' : 'Ask'}
         </button>
       </form>
@@ -165,7 +178,7 @@ export default function Assistant() {
               <button
                 key={example}
                 type="button"
-                className="filter-button"
+                className="suggestion-chip"
                 onClick={() => ask(example)}
               >
                 {example}
@@ -179,7 +192,8 @@ export default function Assistant() {
         {asking ? (
           <article className="chat-turn">
             <p className="chat-question">{pending}</p>
-            <div className="chat-answer chat-pending">
+            <div className="chat-answer chat-pending" role="status">
+              <span className="chat-pending-dot" aria-hidden="true" />
               Writing the query and running it...
             </div>
           </article>
