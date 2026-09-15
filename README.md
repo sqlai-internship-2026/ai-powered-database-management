@@ -27,6 +27,7 @@ audit are read live from the database. There is no mock data in the frontend.
 │   ├── main.py               Endpoints
 │   ├── auth.py               Keycloak access token validation
 │   ├── db.py                 PostgreSQL connection settings
+│   ├── project_detail.py     One project with its budget position, team, products and investments
 │   ├── llm/                  The one place that calls a language model
 │   │   └── client.py         Key, retries, and a named error per failure
 │   ├── reports/              Reporting queries, and the natural-language pipeline
@@ -146,6 +147,7 @@ of them require an `Authorization: Bearer <access token>` header except
 | `/api/departments`         | Departments with a derived `employee_count`          |
 | `/api/employees`           | Employees joined with their department name          |
 | `/api/projects`            | Projects with budget and status                      |
+| `/api/projects/{id}`       | One project: budget position, team, products and investments; 404 for an unknown id |
 | `/api/products`            | Product and subsystem catalog                        |
 | `/api/investments`         | Investments joined with their project name           |
 | `/api/reports/filters`     | Statuses, investment year range and departments      |
@@ -173,7 +175,26 @@ ago, and both are refused the same way.
 
 The junction tables `project_employees` and `project_products` have no endpoint
 of their own, no menu entry and no page on purpose. They are read through the
-reporting endpoints, and will also be used inside project detail screens.
+reporting endpoints and through `/api/projects/{id}`, which is what the project
+detail panel shows.
+
+### Project detail
+
+Clicking a project on the Projects screen opens `/projects/{id}`: a panel over
+the list with the project's budget position, its team (through
+`project_employees`, with each person's role on the project and no salary), the
+products allocated to it (through `project_products`, with quantity and line
+cost) and its investments, newest first. The address can be shared, Back closes
+the panel, and the list underneath keeps its search, filters and page. Like
+every other screen it only reads - nothing in it edits a project.
+
+The budget figures follow the Financial report's rules, so a project shows the
+same numbers in both places: invested is every investment recorded against the
+project, remaining is budget minus invested and goes negative once it is
+overspent, and utilization only exists for a budget above zero. The project and
+its three relations are read with separate queries rather than one join, which
+would repeat every investment once per team member and product and inflate the
+totals.
 
 ## Reports
 
@@ -544,14 +565,17 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-149 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+200 tests, no database, no model and no Keycloak. The SQL guard, the extraction
 of SQL from a model reply, the chart rules, the token claim rules and the block
 an audit finding is rendered into are pure functions, which is why they were
 written that way. The summarising step and the finding explanation are tested
 with the model replaced, and `run_query` with the cursor replaced: what matters
 in each is when the call happens, what it is shown and what happens when it
-fails, none of which needs a real one. Two tests check the route table itself,
-so an endpoint added without the token check fails the suite, and
+fails, none of which needs a real one. The route table is checked as well:
+every route the app serves, including those on the included router, must carry
+the token check and must answer a request without a token with 401, and the
+tests fail if they found no routes to check. An endpoint added without the
+token check fails the suite, and
 `llm/test_client.py` checks the sentence each kind of failed call produces -
 every one of those is shown to a user, and a wrong one sends them to fix
 something that was never broken.
@@ -630,6 +654,26 @@ value is matched literally in two places: the active-project count in
 `frontend/src/components/StatusBadge.jsx`. Storing a language-neutral code
 (`ACTIVE` / `COMPLETED` / `PLANNING` / `ON_HOLD`, guarded by a CHECK constraint)
 would remove both literals and let the UI decide how to label them.
+
+## Theme
+
+The console opens in the light theme, and the button in the top bar switches
+to dark and back. The operating system's colour preference is not followed, so
+nobody gets the dark theme without choosing it. The choice is kept per browser
+in `localStorage` under `sqlai.theme`; where storage is unavailable the button
+still works and the next load opens light again.
+
+Every colour is a token. The light values are the plain `:root` blocks in
+`frontend/src/index.css`, and the dark values are defined only in the
+`:root[data-theme="dark"]` block that follows the first of them. That block is
+inside `@media screen`, so printing always uses the light theme.
+
+A new colour belongs in both token blocks, never as a literal in a rule or in
+JSX - otherwise one of the two themes silently draws it wrong.
+
+`index.html` applies a saved dark choice before the stylesheet loads, so a
+production build does not flash white on load. The dev server injects the CSS
+from JavaScript and can still show a brief flash, which is expected.
 
 ## URLs
 
@@ -735,5 +779,3 @@ values the frontend uses.
 - **LDAP** as an identity source.
 - **Write operations.** Every endpoint is a GET; records are created and edited
   directly in the database.
-- **Project detail screens**, which is where `project_employees` and
-  `project_products` will be shown per program.

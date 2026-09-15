@@ -66,7 +66,11 @@ export async function apiGet(path) {
     } catch {
       // Error responses are not always JSON; the status text is enough then.
     }
-    throw new Error(detail)
+    // The status travels with the sentence, so a screen can tell "there is no
+    // such record" (404) apart from a backend that could not answer.
+    const error = new Error(detail)
+    error.status = response.status
+    throw error
   }
 
   return response.json()

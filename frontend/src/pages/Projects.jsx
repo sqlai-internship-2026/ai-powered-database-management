@@ -1,6 +1,8 @@
+import { Outlet, useNavigate } from 'react-router-dom'
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
+import { ChevronRightIcon } from '../components/icons'
 import { useApiData } from '../utils/api'
 import { formatCurrency, formatDay } from '../utils/format'
 
@@ -48,19 +50,35 @@ const columns = [
     render: (project) => formatDay(project.end_date),
   },
   { key: 'id', header: 'ID', align: 'right', searchable: false },
+  // The row itself opens the project, from the mouse and from Enter or Space.
+  // The chevron only says that it can; a button of its own inside a row that
+  // is already the control would be a second Tab stop doing the same thing.
+  {
+    key: 'open',
+    header: <span className="visually-hidden">Details</span>,
+    sortable: false,
+    searchable: false,
+    className: 'cell-open',
+    render: () => (
+      <span className="row-open-hint" aria-hidden="true">
+        <ChevronRightIcon size={16} />
+      </span>
+    ),
+  },
 ]
 
 const filters = [{ key: 'status', label: 'Status', allLabel: 'All statuses' }]
 
 export default function Projects() {
   const { data: projects, loading, error } = useApiData('/api/projects', [])
+  const navigate = useNavigate()
 
   return (
     <>
       <PageHeader
         eyebrow="Management data"
         title="Projects"
-        description="Every programme on the books, with its budget, its schedule and where it currently stands."
+        description="Every programme on the books, with its budget, its schedule and where it currently stands. Open one to see its team, products and investments."
       />
       <DataTable
         columns={columns}
@@ -75,7 +93,13 @@ export default function Projects() {
         initialSort={{ key: 'start_date', direction: 'desc' }}
         emptyTitle="No projects yet"
         emptyMessage="The projects table has no rows."
+        onRowClick={(project) =>
+          navigate(`/projects/${project.id}`, { state: { fromList: true } })
+        }
       />
+
+      {/* The project detail panel, when the address names a project. */}
+      <Outlet />
     </>
   )
 }

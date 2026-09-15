@@ -136,6 +136,23 @@ export function CloseIcon(props) {
   )
 }
 
+export function SunIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M4.6 4.6L6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" />
+    </Icon>
+  )
+}
+
+export function MoonIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z" />
+    </Icon>
+  )
+}
+
 export function ChevronLeftIcon(props) {
   return (
     <Icon {...props}>

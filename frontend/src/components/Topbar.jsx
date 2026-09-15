@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { navigationItems } from './Sidebar'
 import { initials } from '../utils/format'
-import { MenuIcon } from './icons'
+import { applyTheme, readTheme, saveTheme } from '../utils/theme'
+import { MenuIcon, MoonIcon, SunIcon } from './icons'
 
 // Where you are, who you are, and on a phone the way back to the menu. It
 // deliberately does not repeat the page heading below it: the same words set
@@ -23,6 +25,18 @@ export default function Topbar({ menuButtonRef, drawerOpen = false, onOpenDrawer
   const { username, fullName } = useAuth()
   const { section, page } = useLocationTrail()
   const displayName = fullName || username
+
+  // Read from the page rather than from storage: index.html has already applied
+  // the saved choice by the time this renders.
+  const [theme, setTheme] = useState(readTheme)
+  const nextTheme = theme === 'dark' ? 'light' : 'dark'
+  const themeLabel = `Switch to ${nextTheme} theme`
+
+  function toggleTheme() {
+    applyTheme(nextTheme)
+    saveTheme(nextTheme)
+    setTheme(nextTheme)
+  }
 
   return (
     <header className="topbar">
@@ -50,13 +64,26 @@ export default function Topbar({ menuButtonRef, drawerOpen = false, onOpenDrawer
         </nav>
       </div>
 
-      <div className="topbar-user">
-        <span className="topbar-username">
-          Signed in as <strong>{displayName}</strong>
-        </span>
-        <span className="topbar-avatar" aria-hidden="true">
-          {initials(displayName)}
-        </span>
+      <div className="topbar-actions">
+        {/* The icon shows the theme a press switches to, and the label says it. */}
+        <button
+          type="button"
+          className="topbar-icon-button"
+          onClick={toggleTheme}
+          aria-label={themeLabel}
+          title={themeLabel}
+        >
+          {theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+        </button>
+
+        <div className="topbar-user">
+          <span className="topbar-username">
+            Signed in as <strong>{displayName}</strong>
+          </span>
+          <span className="topbar-avatar" aria-hidden="true">
+            {initials(displayName)}
+          </span>
+        </div>
       </div>
     </header>
   )

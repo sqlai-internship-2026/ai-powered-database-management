@@ -3,6 +3,7 @@ import ProtectedRoute from './auth/ProtectedRoute'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
+import ProjectDetail from './pages/ProjectDetail'
 import Employees from './pages/Employees'
 import Departments from './pages/Departments'
 import Products from './pages/Products'
@@ -22,7 +23,11 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/projects" element={<Projects />} />
+          {/* The detail is a child of the list, so opening a project leaves the
+              list mounted underneath with its search, filters and page intact. */}
+          <Route path="/projects" element={<Projects />}>
+            <Route path=":projectId" element={<ProjectDetail />} />
+          </Route>
           <Route path="/employees" element={<Employees />} />
           <Route path="/departments" element={<Departments />} />
           <Route path="/products" element={<Products />} />

@@ -34,6 +34,17 @@ def _status_filter(statuses, params, alias="p"):
     return f" AND {alias}.status = ANY(%s)"
 
 
+def is_over_budget(budget, invested):
+    """Whether a project has committed more than its budget.
+
+    A budget that is not recorded is unknown, not zero, so a project without
+    one is never over it. A budget of zero is a real budget, so anything
+    invested against it is over. The project detail panel decides it with this
+    same function, so a project is flagged the same way in both places.
+    """
+    return budget is not None and invested > budget
+
+
 def filter_options():
     """Everything the filter bar needs to build itself from live data."""
     statuses = fetch_all(
@@ -128,7 +139,9 @@ def financial_report(year_from=None, year_to=None, statuses=None):
 
     total_budget = sum(row["budget"] or 0 for row in projects)
     total_invested = sum(row["invested"] for row in projects)
-    over_budget = [row for row in projects if row["invested"] > (row["budget"] or 0)]
+    over_budget = [
+        row for row in projects if is_over_budget(row["budget"], row["invested"])
+    ]
 
     summary = {
         "project_count": len(projects),

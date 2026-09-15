@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from auth import require_user
 from db import fetch_all, fetch_one
+from project_detail import read_project
 from reports import (
     filter_options,
     financial_report,
@@ -132,6 +133,21 @@ def list_projects():
         """
     )
     return rows
+
+
+@api.get("/api/projects/{project_id}")
+def get_project(project_id: int):
+    """One project with its team, products, investments and budget position.
+
+    A 404 rather than an empty body for an id nobody has, so the screen can tell
+    "there is no such project" apart from a project with nothing recorded yet.
+    """
+    detail = read_project(project_id)
+    if detail is None:
+        raise HTTPException(
+            status_code=404, detail=f"There is no project with ID {project_id}."
+        )
+    return detail
 
 
 @api.get("/api/products")

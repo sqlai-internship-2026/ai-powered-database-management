@@ -7,66 +7,93 @@
    status that moves from --color-success to --color-danger keeps reading
    correctly wherever it was used.
 
-   Hue carries state and nothing else. Blue is the single accent - links,
-   primary actions, the active page. Green, orange and red appear only where
-   something is genuinely healthy, slipping or late, and never alone: every
-   place that tints something also prints the word or the number the tint is
-   agreeing with.
+   Hue carries state and nothing else. A matt steel blue is the single accent
+   - primary actions, links, the current selection. Muted green, ochre and
+   brick appear only where something is genuinely healthy, slipping or late,
+   and never alone: every place that tints something also prints the word or
+   the number the tint is agreeing with. Everything else is graphite, steel
+   grey and white, so a screen full of figures reads as an instrument panel
+   rather than as a set of coloured cards.
 --------------------------------------------------------------------------- */
 :root {
-  /* Surfaces, from the working ground up to the content the eye lands on. */
-  --color-page: #eef2f7;
+  /* Surfaces, from the working ground up to the content the eye lands on.
+     Near-neutral greys with the faintest cool cast: a page of tables should
+     read as paper under daylight, not as a tinted screen. */
+  --color-page: #f3f4f5;
   --color-surface: #ffffff;
-  --color-surface-muted: #f6f8fb;
-  --color-surface-sunken: #f1f4f9;
-  --color-border: #e1e7ef;
-  --color-border-strong: #ccd5e2;
+  --color-surface-muted: #f7f8f9;
+  --color-surface-sunken: #eceef0;
+  --color-border: #d8dde3;
+  --color-border-strong: #c2c9d1;
 
-  --color-text: #16202e;
-  --color-text-muted: #5a6b82;
-  --color-text-subtle: #8494aa;
+  /* The edge of something that takes input - a text box, a select. Darker
+     than the surface borders on purpose: a card only has to be told apart from
+     the page, but a field has to be found, and 3:1 is the least that lets it. */
+  --color-control-border: #78818a;
 
-  /* The one accent. */
-  --color-primary: #1f5fd0;
-  --color-primary-hover: #1a53ba;
-  --color-primary-active: #16459c;
-  --color-primary-soft: #e9f0fd;
-  --color-primary-soft-border: #cadcfa;
-  --color-primary-ink: #16459c;
+  --color-text: #20252b;
+  --color-text-muted: #5b646e;
+  --color-text-subtle: #646d77;
+
+  /* The one accent: matt steel blue, for primary actions, links and the
+     current selection - never for decoration. */
+  --color-primary: #35657d;
+  --color-primary-hover: #2b5266;
+  --color-primary-active: #234456;
+  --color-primary-soft: #e9eff2;
+  --color-primary-soft-border: #c6d5dd;
+  --color-primary-ink: #284c5f;
+  --color-primary-text: #35657d;
+
+  /* A second, quieter accent - smoked sage - kept for the one mark that must
+     not compete with the primary: the current page in the sidebar. */
+  --color-accent-secondary: #667a68;
+
+  /* Ink on a filled primary control, and on the dark chart tooltips. */
+  --color-on-primary: #ffffff;
+  --color-on-dark: #f2f4f6;
+  --color-on-dark-muted: #aab4be;
 
   /* State. Each set is a fill, a border and the ink that stays legible on it;
-     the ink tones clear 4.5:1 on their own soft background. */
-  --color-success: #15803d;
-  --color-success-ink: #14653a;
-  --color-success-soft: #e6f4ea;
-  --color-success-border: #c3e2cd;
+     the ink tones clear 4.5:1 on their own soft background. Matt rather than
+     signal-bright: these mark a state, they do not raise an alarm. */
+  --color-success: #3f6b52;
+  --color-success-ink: #335a44;
+  --color-success-soft: #eaf1ec;
+  --color-success-border: #c5d7ca;
 
-  --color-warning: #b45309;
-  --color-warning-ink: #8a4308;
-  --color-warning-soft: #fdf2e0;
-  --color-warning-border: #f0d9ae;
+  --color-warning: #946824;
+  --color-warning-ink: #74511a;
+  --color-warning-soft: #f6f0e4;
+  --color-warning-border: #e2d3b4;
 
-  --color-danger: #b42222;
-  --color-danger-ink: #97191b;
-  --color-danger-soft: #fcebea;
-  --color-danger-border: #f2c9c6;
+  --color-danger: #984646;
+  --color-danger-ink: #803838;
+  --color-danger-soft: #f6ebea;
+  --color-danger-border: #e3c8c6;
 
-  --color-info: #1f5fd0;
-  --color-info-ink: #16459c;
-  --color-info-soft: #e9f0fd;
-  --color-info-border: #cadcfa;
+  --color-info: #496b80;
+  --color-info-ink: #3b596b;
+  --color-info-soft: #ebf0f3;
+  --color-info-border: #cbd8e0;
 
-  /* Sidebar. Dark navy so the navigation reads as chrome, and the work on the
-     light ground beside it never has to compete with it. */
-  --sidebar-bg: #0f1d31;
-  --sidebar-bg-raised: #16283f;
-  --sidebar-hover: #1a2f4a;
-  --sidebar-active: #1c3250;
-  --sidebar-text: #aab9cd;
-  --sidebar-text-strong: #ffffff;
-  --sidebar-text-muted: #6d7f99;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-accent: #4d8dfb;
+  /* Behind a dialog or a panel: enough to say the page is not what is being
+     operated, not so much that the list beside a panel disappears. */
+  --color-scrim: rgba(24, 35, 46, 0.36);
+
+  /* Sidebar. Graphite with a trace of navy - never black - so the navigation
+     reads as chrome and the work on the light ground beside it never has to
+     compete with it. Hover and the current page are two different lifts of
+     the same surface, and the current page also carries a sage mark. */
+  --sidebar-bg: #18232e;
+  --sidebar-bg-raised: #22313e;
+  --sidebar-hover: rgba(255, 255, 255, 0.045);
+  --sidebar-active: rgba(255, 255, 255, 0.1);
+  --sidebar-text: #b3bcc5;
+  --sidebar-text-strong: #f2f4f6;
+  --sidebar-text-muted: #86919c;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-accent: #8fa693;
 
   /* Spacing. A four pixel step is small enough to tune a dense table and
      regular enough that two screens laid out independently still line up. */
@@ -84,15 +111,16 @@
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-lg: 10px;
   --radius-pill: 999px;
 
-  /* Shadow. Enough to lift a surface off the page, never enough to be noticed
-     as an effect in its own right. */
-  --shadow-xs: 0 1px 1px rgba(16, 32, 56, 0.04);
-  --shadow-sm: 0 1px 2px rgba(16, 32, 56, 0.06), 0 1px 1px rgba(16, 32, 56, 0.04);
-  --shadow-md: 0 2px 6px rgba(16, 32, 56, 0.08), 0 1px 2px rgba(16, 32, 56, 0.04);
-  --shadow-lg: 0 16px 40px rgba(10, 22, 40, 0.22);
+  /* Shadow. Content surfaces are separated by their border, so the two small
+     shadows are next to nothing; depth is kept for what actually floats over
+     the page - tooltips, the panel and the dialog. */
+  --shadow-xs: 0 0 0 transparent;
+  --shadow-sm: 0 1px 1px rgba(20, 28, 36, 0.035);
+  --shadow-md: 0 4px 14px rgba(20, 28, 36, 0.14);
+  --shadow-lg: 0 18px 48px rgba(16, 24, 32, 0.24);
 
   /* Shell measurements. The collapsed width is an icon plus its padding, so
      the rail keeps the same optical centre as the open sidebar. */
@@ -103,7 +131,7 @@
 
   /* Focus. One ring everywhere, drawn outside the control so it never moves
      what it is marking. */
-  --focus-ring-color: #2f6fed;
+  --focus-ring-color: #3a7390;
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
@@ -113,15 +141,131 @@
   --z-topbar: 20;
   --z-overlay: 40;
   --z-drawer: 50;
+  --z-panel: 60;
 
   /* Kept from the first version of this stylesheet, because the report, chart,
      audit and assistant rules further down still name them. */
-  --color-navy: #0f1d31;
-  --color-navy-light: #1a2f4a;
-  --color-accent: #1f5fd0;
+  --color-navy: #18232e;
+  --color-navy-light: #22313e;
+  --color-accent: #35657d;
   --radius: 8px;
 
   color-scheme: light;
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme
+
+   The same tokens with dark values, switched on by data-theme="dark" on <html>
+   (see src/utils/theme.js). Only colours are redefined: spacing, radius,
+   layers and measurements are the same in both themes.
+
+   Inside @media screen on purpose. Paper is white, so printing from the dark
+   theme uses the light values without a print rule of its own. The selector
+   also outranks a bare :root, which is how this block reaches the chart tokens
+   declared further down the file.
+
+   Two things do not simply invert. A filled primary control still darkens on
+   hover and press, because lighter steel under white text falls below 4.5:1.
+   And the donut ramp runs the other way: on a dark ground the lightest slice
+   is the one that stands out, so the largest slice takes it.
+--------------------------------------------------------------------------- */
+@media screen {
+  :root[data-theme="dark"] {
+    /* Surfaces. A graphite ground, cards one step lighter, and sunken wells
+       below the ground rather than above it. */
+    --color-page: #151b21;
+    --color-surface: #1e252c;
+    --color-surface-muted: #232b33;
+    --color-surface-sunken: #11161b;
+    --color-border: #313a44;
+    --color-border-strong: #414b56;
+    --color-control-border: #6b7580;
+
+    --color-text: #e4e8ec;
+    --color-text-muted: #a3adb7;
+    --color-text-subtle: #97a1ab;
+
+    /* Steel blue is kept as a fill, where white text on it clears 4.5:1. As
+       text it would not clear 4.5:1 on a card, so links and marks take the
+       lighter ink through --color-primary-text. */
+    --color-primary: #3f7590;
+    --color-primary-hover: #376a83;
+    --color-primary-active: #305d73;
+    --color-primary-soft: #1f3440;
+    --color-primary-soft-border: #2c4a5a;
+    --color-primary-ink: #9cc6da;
+    --color-primary-text: #9cc6da;
+
+    --color-accent-secondary: #8fa693;
+
+    /* State. Fills and inks are lifted so they read on the dark cards; the
+       soft grounds are dark washes of the same hue. */
+    --color-success: #6fa585;
+    --color-success-ink: #93c4a6;
+    --color-success-soft: #1c2c23;
+    --color-success-border: #2d4637;
+
+    --color-warning: #c9a05a;
+    --color-warning-ink: #dfbd80;
+    --color-warning-soft: #2f2717;
+    --color-warning-border: #4a3c22;
+
+    --color-danger: #cf7a7a;
+    --color-danger-ink: #e39c9c;
+    --color-danger-soft: #321d1e;
+    --color-danger-border: #4f2e2f;
+
+    --color-info: #7fa3b8;
+    --color-info-ink: #a5c3d4;
+    --color-info-soft: #1c2a33;
+    --color-info-border: #2c404d;
+
+    --color-scrim: rgba(0, 0, 0, 0.55);
+
+    /* The sidebar sits below the page ground, so it still reads as chrome. Its
+       text, hover and current-page tokens work unchanged on the darker bg. */
+    --sidebar-bg: #10161b;
+    --sidebar-bg-raised: #1a2229;
+    --sidebar-border: rgba(255, 255, 255, 0.06);
+
+    /* A shadow on a dark ground has to be much darker before it reads at all. */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.6);
+
+    --focus-ring-color: #6fa9c6;
+
+    /* The chart tooltip ground is lifted above the cards rather than sunk into
+       the page, so a tooltip is still a separate surface over a chart. */
+    --color-navy: #34414b;
+    --color-navy-light: #3e4c57;
+    --color-accent: #5e97b3;
+
+    --chart-series: #5e97b3;
+    --chart-warning: #c9a05a;
+    --chart-critical: #cf7a7a;
+    --chart-track: #2a323a;
+    --chart-grid: #29313a;
+
+    --chart-slice-1: #b5cbd6;
+    --chart-slice-2: #8eb0c0;
+    --chart-slice-3: #6995aa;
+    --chart-slice-4: #4b7d95;
+    --chart-slice-5: #3a6a82;
+    --chart-slice-6: #2e586c;
+    --chart-slice-7: #244757;
+    --chart-slice-8: #1c3743;
+
+    color-scheme: dark;
+  }
+
+  /* Hover darkens a bar in the light theme. On a dark ground that sinks it
+     into the track, so here it brightens instead. */
+  :root[data-theme="dark"] .bar-row.active .bar-fill,
+  :root[data-theme="dark"] .column-slot.active .column-bar {
+    filter: brightness(1.15);
+  }
 }
 
 * {
@@ -147,7 +291,8 @@ body {
 /* A drawer open over the page must not leave the page scrolling underneath it;
    the class is set on <body> for as long as the drawer is open. */
 body.has-drawer-open,
-body.has-dialog-open {
+body.has-dialog-open,
+body.has-panel-open {
   overflow: hidden;
 }
 
@@ -234,8 +379,9 @@ summary:focus-visible,
   height: 32px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: #ffffff;
+  background: var(--sidebar-bg-raised);
+  border: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text-strong);
 }
 
 .sidebar-brand-text {
@@ -349,7 +495,7 @@ summary:focus-visible,
   left: 0;
   top: 6px;
   bottom: 6px;
-  width: 3px;
+  width: 2px;
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   background: var(--sidebar-accent);
 }
@@ -497,7 +643,7 @@ summary:focus-visible,
   z-index: var(--z-overlay);
   border: none;
   padding: 0;
-  background: rgba(10, 22, 40, 0.45);
+  background: var(--color-scrim);
   cursor: pointer;
 }
 
@@ -553,6 +699,35 @@ summary:focus-visible,
   color: var(--color-text);
 }
 
+/* The theme switch and the signed-in user, kept together on the right. */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+/* Drawn like the menu button, but shown at every width: choosing a theme is not
+   a phone-only need. No transition, so the theme changes in one frame. */
+.topbar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.topbar-icon-button:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
 /* A trail, not a title. The page heading below is the title, and printing the
    same words twice one above the other only makes a screen look emptier. */
 .topbar-breadcrumb {
@@ -602,8 +777,8 @@ summary:focus-visible,
   height: 30px;
   flex-shrink: 0;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-ink);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -710,8 +885,7 @@ summary:focus-visible,
 .button-primary {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #ffffff;
-  box-shadow: var(--shadow-xs);
+  color: var(--color-on-primary);
 }
 
 .button-primary:hover {
@@ -733,7 +907,7 @@ summary:focus-visible,
 .button-quiet {
   border-color: transparent;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   padding-left: var(--space-2);
   padding-right: var(--space-2);
 }
@@ -776,7 +950,7 @@ summary:focus-visible,
   font: inherit;
   font-size: 13px;
   padding: 7px 10px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
@@ -862,7 +1036,7 @@ select:focus {
   gap: 6px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -916,36 +1090,32 @@ select:focus {
 }
 
 /* The mark beside a figure names the subject; it is an aid to scanning, never
-   the only thing saying what the number is. */
+   the only thing saying what the number is. A plain line icon in quiet ink,
+   not a tinted tile: a row of coloured tiles makes every figure look equally
+   urgent. Only a figure that is actually in a warning or danger state lets its
+   mark take the state's ink. */
 .stat-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-sunken);
-  color: var(--color-text-muted);
+  background: none;
+  color: var(--color-text-subtle);
 }
 
-.stat-icon-primary {
-  background: var(--color-primary-soft);
-  color: var(--color-primary-ink);
-}
-
+.stat-icon-primary,
 .stat-icon-success {
-  background: var(--color-success-soft);
-  color: var(--color-success-ink);
+  color: var(--color-text-subtle);
 }
 
 .stat-icon-warning {
-  background: var(--color-warning-soft);
   color: var(--color-warning-ink);
 }
 
 .stat-icon-danger {
-  background: var(--color-danger-soft);
   color: var(--color-danger-ink);
 }
 
@@ -1162,7 +1332,7 @@ tbody tr:hover td {
 .sort-arrow {
   display: flex;
   opacity: 0;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .sort-button:hover .sort-arrow {
@@ -1551,12 +1721,11 @@ tbody tr:hover td {
   height: 28px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-warning-soft);
+  background: none;
   color: var(--color-warning-ink);
 }
 
 .attention-icon.is-overdue {
-  background: var(--color-danger-soft);
   color: var(--color-danger-ink);
 }
 
@@ -1883,7 +2052,7 @@ tbody tr:hover td {
 .audit-readonly svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .audit-readonly strong {
@@ -1960,11 +2129,11 @@ tbody tr:hover td {
 }
 
 .finding.severity-error {
-  border-left-color: #c0392b;
+  border-left-color: var(--color-danger);
 }
 
 .finding.severity-warning {
-  border-left-color: #d79a2b;
+  border-left-color: var(--color-warning);
 }
 
 .finding.severity-info {
@@ -1990,7 +2159,7 @@ tbody tr:hover td {
 }
 
 .finding-head:hover {
-  background: #f7f9fc;
+  background: var(--color-surface-muted);
 }
 
 .finding.is-open .finding-head {
@@ -2089,11 +2258,11 @@ tbody tr:hover td {
   font-size: 11.5px;
   text-transform: none;
   letter-spacing: 0;
-  background: #f2f5f9;
+  background: var(--color-surface-sunken);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 1px 7px;
-  color: #3c4a5e;
+  color: var(--color-text);
 }
 
 /* Side by side, because the left column argues for one of the fixes in the
@@ -2192,32 +2361,32 @@ tbody tr:hover td {
    are still there and still right - so this is a warm note rather than a red
    alarm, matching how the Ask page treats the same four errors. */
 .explanation-error {
-  background: #fdf7ec;
-  border: 1px solid #e6cfa8;
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
   border-radius: var(--radius);
   padding: 12px 14px;
 }
 
 .explanation-error-text {
   margin: 0;
-  color: #6b4f14;
+  color: var(--color-warning-ink);
   font-size: 13px;
   line-height: 1.6;
 }
 
 .explanation-retry {
   margin-top: 10px;
-  border: 1px solid #d9b878;
+  border: 1px solid var(--color-warning-border);
   background: var(--color-surface);
-  color: #6b4f14;
-  border-radius: 4px;
+  color: var(--color-warning-ink);
+  border-radius: var(--radius-sm);
   padding: 5px 14px;
   font-size: 12.5px;
   cursor: pointer;
 }
 
 .explanation-retry:hover {
-  background: #f8eeda;
+  background: var(--color-warning-soft);
 }
 
 .remediation-list {
@@ -2300,7 +2469,7 @@ tbody tr:hover td {
 .code-block {
   position: relative;
   margin-top: 10px;
-  background: #f7f9fc;
+  background: var(--color-surface-muted);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   overflow-x: auto;
@@ -2312,7 +2481,7 @@ tbody tr:hover td {
   font-family: Consolas, "Courier New", monospace;
   font-size: 12.5px;
   line-height: 1.6;
-  color: #2b3648;
+  color: var(--color-text);
 }
 
 .copy-button {
@@ -2391,11 +2560,11 @@ tbody tr:hover td {
  * with its value, so colour never carries the meaning alone.
  */
 :root {
-  --chart-series: #2f6fed;
-  --chart-warning: #c2820a;
-  --chart-critical: #d03b3b;
-  --chart-track: #eef1f5;
-  --chart-grid: #e9edf2;
+  --chart-series: #3f6f87;
+  --chart-warning: #a3752c;
+  --chart-critical: #a44c4c;
+  --chart-track: #eceef0;
+  --chart-grid: #e7eaed;
   --plot-height: 220px;
 
   /*
@@ -2407,14 +2576,14 @@ tbody tr:hover td {
    * The legend prints the value and the share next to every label, so no slice
    * is identified by its colour alone.
    */
-  --chart-slice-1: #16305c;
-  --chart-slice-2: #1d4488;
-  --chart-slice-3: #2559b4;
-  --chart-slice-4: #2f6fed;
-  --chart-slice-5: #5c8ef4;
-  --chart-slice-6: #8aaef8;
-  --chart-slice-7: #b3c9fb;
-  --chart-slice-8: #d6e2fd;
+  --chart-slice-1: #1f3a48;
+  --chart-slice-2: #2b5064;
+  --chart-slice-3: #35657d;
+  --chart-slice-4: #4b7d95;
+  --chart-slice-5: #6995aa;
+  --chart-slice-6: #8eb0c0;
+  --chart-slice-7: #b5cbd6;
+  --chart-slice-8: #d8e4ea;
 }
 
 /* Four reports under one menu entry. A two pixel underline was the only thing
@@ -2454,7 +2623,7 @@ tbody tr:hover td {
 
 .report-tab:hover {
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--color-surface-muted);
 }
 
 .report-tab.active {
@@ -2621,8 +2790,8 @@ select {
   font: inherit;
   font-size: 13px;
   padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
@@ -2796,7 +2965,7 @@ select:focus-visible {
 }
 
 .segment.is-selected .segment-icon {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .segmented-sm .segment {
@@ -2905,7 +3074,7 @@ td.meter-column,
   bottom: calc(100% + 4px);
   display: none;
   background: var(--color-navy);
-  color: #ffffff;
+  color: var(--color-on-dark);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 6px;
@@ -3009,7 +3178,7 @@ td.meter-column,
   flex-direction: column;
   gap: 1px;
   background: var(--color-navy);
-  color: #ffffff;
+  color: var(--color-on-dark);
   font-size: 11px;
   line-height: 1.35;
   padding: 6px 10px;
@@ -3017,11 +3186,11 @@ td.meter-column,
   white-space: nowrap;
   z-index: 2;
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(18, 35, 59, 0.18);
+  box-shadow: var(--shadow-md);
 }
 
 .column-tooltip .muted {
-  color: #b9c6da;
+  color: var(--color-on-dark-muted);
 }
 
 .column-labels {
@@ -3398,7 +3567,7 @@ td.meter-column,
 .ask-input {
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-control-border);
   border-radius: var(--radius);
   background: var(--color-surface);
   color: var(--color-text);
@@ -3406,10 +3575,14 @@ td.meter-column,
   font-family: inherit;
 }
 
+.ask-input:hover {
+  border-color: var(--color-text-subtle);
+}
+
 .ask-input:focus {
-  outline: 2px solid #cfdffb;
+  outline: 2px solid var(--color-primary-soft-border);
   outline-offset: 0;
-  border-color: #9dbdf0;
+  border-color: var(--color-primary);
 }
 
 /* Offered, not instructed: small, quiet and out of the way of the box they are
@@ -3437,7 +3610,7 @@ td.meter-column,
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
   padding: 4px 11px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   font: inherit;
   font-size: 12.5px;
   line-height: 1.45;
@@ -3493,9 +3666,9 @@ td.meter-column,
 .preview-section {
   margin-top: var(--space-5);
   padding: var(--space-4);
-  border: 1px solid var(--color-primary-soft-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-primary-soft);
+  background: var(--color-surface-muted);
 }
 
 .preview-section .report-card,
@@ -3506,9 +3679,9 @@ td.meter-column,
 /* A refusal is not a system failure - the user asked something the feature
    cannot answer - so it reads as a message rather than a red alarm. */
 .ask-error {
-  background: #fff6e8;
-  border-color: #f0d5ac;
-  color: #6b4a13;
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-ink);
 }
 
 .ask-hint {
@@ -3554,15 +3727,15 @@ td.meter-column,
 .card-title-input:hover,
 .builder-title-input:hover,
 .builder-description-input:hover {
-  border-color: var(--color-border);
+  border-color: var(--color-control-border);
 }
 
 .card-title-input:focus,
 .builder-title-input:focus,
 .builder-description-input:focus {
-  outline: 2px solid #cfdffb;
+  outline: 2px solid var(--color-primary-soft-border);
   outline-offset: 0;
-  border-color: #9dbdf0;
+  border-color: var(--color-primary);
   background: var(--color-surface);
 }
 
@@ -3616,7 +3789,7 @@ td.meter-column,
   padding: 0;
   font: inherit;
   font-size: 12.5px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
 }
 
@@ -3956,8 +4129,9 @@ td.meter-column,
   align-self: flex-end;
   max-width: min(560px, 85%);
   margin: 0;
-  background: var(--color-navy);
-  color: #ffffff;
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 10px 14px;
   font-size: 13.5px;
@@ -4020,9 +4194,9 @@ td.meter-column,
 /* A refusal is an answer: same block, warmer border, so it reads as the model
    replying rather than as the page breaking. */
 .chat-refusal {
-  border-color: #e6cfa8;
-  background: #fdf7ec;
-  color: #6b4f14;
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-ink);
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -4165,7 +4339,7 @@ td.meter-column,
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
-  background: rgba(10, 22, 40, 0.42);
+  background: var(--color-scrim);
   animation: dialog-fade 0.12s ease;
 }
 
@@ -4411,7 +4585,7 @@ td.meter-column,
   }
 
   .audit-readonly {
-    border: 1px solid #cccccc;
+    border: 1px solid var(--color-border-strong);
     border-left-width: 3px;
   }
 
@@ -4430,5 +4604,445 @@ td.meter-column,
   .preview-section {
     background: none;
     border: none;
+  }
+}
+
+/* ---------- Project detail ---------- */
+
+/* The panel a project opens in. It covers the right of the page and dims the
+   rest without hiding it, so on a desktop the list the project was picked from
+   is still there beside it. */
+.detail-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-panel);
+  display: flex;
+  justify-content: flex-end;
+  background: var(--color-scrim);
+  animation: dialog-fade 0.14s ease;
+}
+
+.detail-drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 64px));
+  height: 100vh;
+  height: 100dvh;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  animation: drawer-slide 0.18s ease;
+}
+
+.detail-drawer:focus {
+  outline: none;
+}
+
+/* Stays put while the panel scrolls: which project this is, and the way out. */
+.detail-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  padding: var(--space-5) var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detail-drawer-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-drawer-close {
+  flex-shrink: 0;
+  margin: -2px -6px 0 0;
+}
+
+.detail-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6) var(--space-7);
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.detail-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+/* The short version, two lines at most; the whole description is under
+   Overview. */
+.detail-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 70ch;
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.detail-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--space-2) 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-head-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.detail-skeleton-title {
+  width: 58%;
+  height: 18px;
+}
+
+/* Four figures as one ruled strip rather than four cards: together they are a
+   single budget position, read left to right. */
+.detail-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.detail-figure {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.detail-figure + .detail-figure {
+  border-left: 1px solid var(--color-border);
+}
+
+.detail-figure dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+}
+
+.detail-figure dd {
+  margin: 0;
+}
+
+.detail-figure .detail-figure-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-figure .detail-figure-value.is-over {
+  color: var(--color-danger-ink);
+}
+
+.detail-figure .detail-figure-meter {
+  margin-top: var(--space-2);
+}
+
+.detail-figure .detail-figure-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.detail-figure .detail-figure-note.is-over {
+  color: var(--color-danger-ink);
+  font-weight: 600;
+}
+
+.detail-figure .detail-figure-note.is-near {
+  color: var(--color-warning-ink);
+  font-weight: 600;
+}
+
+.detail-figures-skeleton {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.detail-figures-skeleton .skeleton {
+  height: 72px;
+  border-radius: var(--radius-md);
+}
+
+/* The tabs take the panel's width, so the four sections read as one control. */
+.detail-tabs {
+  display: flex;
+  width: 100%;
+}
+
+.detail-tabs .segment {
+  flex: 1 1 0;
+  justify-content: center;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.detail-panel {
+  min-width: 0;
+}
+
+.detail-section + .detail-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-section-title {
+  margin: 0 0 var(--space-3);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+}
+
+.detail-prose {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.detail-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+}
+
+.detail-facts dt {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.detail-facts dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-facts dd.is-late,
+.detail-facts dd.is-near {
+  color: var(--color-warning-ink);
+  font-weight: 600;
+}
+
+.detail-facts dd.is-over {
+  color: var(--color-danger-ink);
+  font-weight: 600;
+}
+
+/* How the project is joined to the rest of the database. Each row names what
+   is linked, how much of it there is and the tables it comes through, and
+   opens the tab that lists it. */
+.detail-relations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.detail-relation + .detail-relation {
+  border-top: 1px solid var(--color-border);
+}
+
+.detail-relation-button {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.detail-relation-button:hover {
+  background: var(--color-surface-muted);
+}
+
+.detail-relation-button:focus-visible {
+  outline-offset: -2px;
+}
+
+.detail-relation-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.detail-relation-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.detail-relation-summary {
+  font-size: 13px;
+}
+
+.detail-relation-path {
+  margin-top: 1px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+
+.detail-relation-arrow {
+  display: flex;
+  color: var(--color-text-subtle);
+}
+
+.detail-relation-button:hover .detail-relation-arrow {
+  color: var(--color-primary-text);
+}
+
+/* Relation tables scroll sideways inside their own frame on a narrow screen;
+   the panel itself never does. */
+.detail-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.detail-table td {
+  vertical-align: top;
+}
+
+.detail-table tfoot td {
+  border-top: 1px solid var(--color-border-strong);
+  border-bottom: none;
+  background: var(--color-surface-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+@keyframes drawer-slide {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The Projects list: a chevron says a row opens, and takes the accent with the
+   row under the pointer or the keyboard. */
+.data-table th.cell-open,
+.data-table td.cell-open {
+  width: 1%;
+  padding-left: 0;
+}
+
+.row-open-hint {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--color-text-subtle);
+}
+
+.data-table tbody tr.is-clickable:hover .row-open-hint,
+.data-table tbody tr.is-clickable:focus-visible .row-open-hint {
+  color: var(--color-primary-text);
+}
+
+/* A phone: the panel is the screen. The figures go two by two and the facts
+   stack, so nothing in the panel is wider than the viewport. */
+@media (max-width: 760px) {
+  .detail-drawer {
+    width: 100vw;
+    border-left: none;
+  }
+
+  .detail-drawer-head {
+    padding: var(--space-4);
+  }
+
+  .detail-drawer-body {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+
+  .detail-figures,
+  .detail-figures-skeleton {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-figure + .detail-figure {
+    border-left: none;
+  }
+
+  .detail-figure:nth-child(even) {
+    border-left: 1px solid var(--color-border);
+  }
+
+  .detail-figure:nth-child(n + 3) {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .detail-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-relation-button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .detail-relation-label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* An open panel is not printed over the list it came from. */
+@media print {
+  .detail-scrim {
+    display: none;
   }
 }
