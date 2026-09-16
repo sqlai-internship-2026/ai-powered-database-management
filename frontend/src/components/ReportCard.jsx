@@ -3,6 +3,7 @@ import SegmentedControl from './SegmentedControl'
 import StateBlock from './StateBlock'
 import { ChartIcon, DownloadIcon, TableIcon } from './icons'
 import { downloadCsv } from '../utils/csv'
+import { useT } from '../i18n'
 
 // Wraps one chart. Every chart gets a table twin behind the Table toggle and a
 // CSV button, so no value is reachable only by hovering a mark.
@@ -13,10 +14,14 @@ import { downloadCsv } from '../utils/csv'
 // wide marks the cards that are a table rather than a chart: they keep the full
 // width of the page instead of sitting in the two-column grid, where a six
 // column table would be a scrollbar.
-const VIEWS = [
-  { value: 'chart', label: 'Chart', icon: <ChartIcon size={14} /> },
-  { value: 'table', label: 'Table', icon: <TableIcon size={14} /> },
-]
+const VIEWS = ['chart', 'table']
+
+const VIEW_ICONS = {
+  chart: <ChartIcon size={14} />,
+  table: <TableIcon size={14} />,
+}
+
+const VIEW_LABELS = { chart: 'Chart', table: 'Table' }
 
 export default function ReportCard({
   title,
@@ -27,8 +32,14 @@ export default function ReportCard({
   loading = false,
   children,
 }) {
+  const t = useT()
   const [view, setView] = useState('chart')
   const headingId = useId()
+  const viewOptions = VIEWS.map((value) => ({
+    value,
+    label: t(VIEW_LABELS[value]),
+    icon: VIEW_ICONS[value],
+  }))
   const hasRows = rows && rows.length > 0
 
   return (
@@ -47,9 +58,9 @@ export default function ReportCard({
         </div>
         <div className="report-card-actions">
           <SegmentedControl
-            label={`${title} view`}
+            label={t('{title} view', { title })}
             value={view}
-            options={VIEWS}
+            options={viewOptions}
             onChange={setView}
             size="sm"
           />
@@ -59,11 +70,18 @@ export default function ReportCard({
             type="button"
             className="button button-sm"
             disabled={!hasRows}
-            title={`Download the rows behind "${title}" as a CSV file`}
-            onClick={() => downloadCsv(csvName || title, columns, rows)}
+            title={t('Download the rows behind "{title}" as a CSV file', { title })}
+            onClick={() =>
+              downloadCsv(
+                csvName || title,
+                // The export carries the headings the reader can see.
+                columns.map((column) => ({ ...column, header: t(column.header) })),
+                rows,
+              )
+            }
           >
             <DownloadIcon size={14} />
-            Download CSV
+            {t('Download CSV')}
           </button>
         </div>
       </header>
@@ -73,8 +91,10 @@ export default function ReportCard({
           children
         ) : !hasRows ? (
           <StateBlock
-            title="Nothing to show"
-            text="No rows match the filters above. Widen them, or clear them, to see this report."
+            title={t('Nothing to show')}
+            text={t(
+              'No rows match the filters above. Widen them, or clear them, to see this report.',
+            )}
           />
         ) : (
           <div className="table-wrapper">
@@ -86,7 +106,7 @@ export default function ReportCard({
                       key={column.key}
                       className={column.align === 'right' ? 'align-right' : undefined}
                     >
-                      {column.header}
+                      {t(column.header)}
                     </th>
                   ))}
                 </tr>

@@ -4,6 +4,7 @@ import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
 import { ChevronRightIcon } from '../components/icons'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { formatCurrency, formatDay } from '../utils/format'
 
 // The name is what anybody is looking for, so it leads and carries the
@@ -55,7 +56,9 @@ const columns = [
   // is already the control would be a second Tab stop doing the same thing.
   {
     key: 'open',
-    header: <span className="visually-hidden">Details</span>,
+    // A node rather than a word, so the table hands it through untouched; the
+    // screen reader name it carries is chosen here in the reader's language.
+    header: null,
     sortable: false,
     searchable: false,
     className: 'cell-open',
@@ -72,16 +75,27 @@ const filters = [{ key: 'status', label: 'Status', allLabel: 'All statuses' }]
 export default function Projects() {
   const { data: projects, loading, error } = useApiData('/api/projects', [])
   const navigate = useNavigate()
+  const t = useT()
+
+  // Only the one header that is a node rather than a word has to be built
+  // here; every other string the table is given it translates itself.
+  const tableColumns = columns.map((column) =>
+    column.key === 'open'
+      ? { ...column, header: <span className="visually-hidden">{t('Details')}</span> }
+      : column,
+  )
 
   return (
     <>
       <PageHeader
-        eyebrow="Management data"
-        title="Projects"
-        description="Every programme on the books, with its budget, its schedule and where it currently stands. Open one to see its team, products and investments."
+        eyebrow={t('Management data')}
+        title={t('Projects')}
+        description={t(
+          'Every programme on the books, with its budget, its schedule and where it currently stands. Open one to see its team, products and investments.',
+        )}
       />
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         rows={projects}
         loading={loading}
         error={error}

@@ -14,6 +14,7 @@ import {
   InboxIcon,
 } from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
+import { useT } from '../../i18n'
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -63,6 +64,7 @@ const allocationColumns = [
 
 export default function WorkforceReport() {
   const { filters } = useOutletContext()
+  const t = useT()
   const query = buildQuery({ department_id: filters.departmentId })
   const { data, loading, error } = useApiData(`/api/reports/workforce${query}`)
 
@@ -71,7 +73,7 @@ export default function WorkforceReport() {
       <div className="card">
         <StateBlock
           variant="error"
-          title="Could not load the workforce report"
+          title={t('Could not load the workforce report')}
           text={error}
         />
       </div>
@@ -80,7 +82,11 @@ export default function WorkforceReport() {
   if (!data) {
     return (
       <div className="card">
-        <StateBlock variant="loading" title="Building the workforce report" lines={6} />
+        <StateBlock
+          variant="loading"
+          title={t('Building the workforce report')}
+          lines={6}
+        />
       </div>
     )
   }
@@ -93,33 +99,37 @@ export default function WorkforceReport() {
     <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
-          label="Headcount"
+          label={t('Headcount')}
           value={formatNumber(summary.headcount)}
-          hint={`${formatNumber(summary.department_count)} staffed departments`}
+          hint={t('{count} staffed departments', {
+            count: formatNumber(summary.department_count),
+          })}
           icon={<EmployeesIcon size={17} />}
           tone="primary"
         />
         <StatCard
-          label="Annual Payroll"
+          label={t('Annual Payroll')}
           value={formatCompactCurrency(summary.total_salary)}
-          hint="Sum of recorded salaries"
+          hint={t('Sum of recorded salaries')}
           icon={<BudgetIcon size={17} />}
         />
         <StatCard
-          label="Average Salary"
+          label={t('Average Salary')}
           value={formatCurrency(summary.average_salary)}
           icon={<DepartmentsIcon size={17} />}
         />
         <StatCard
-          label="Average Tenure"
-          value={`${formatNumber(summary.average_tenure_years)} yrs`}
-          hint="Since hire date"
+          label={t('Average Tenure')}
+          value={t('{count} yrs', {
+            count: formatNumber(summary.average_tenure_years),
+          })}
+          hint={t('Since hire date')}
           icon={<ClockIcon size={17} />}
         />
         <StatCard
-          label="Not On A Program"
+          label={t('Not On A Program')}
           value={formatNumber(summary.unassigned_count)}
-          hint="No project assignment"
+          hint={t('No project assignment')}
           icon={<InboxIcon size={17} />}
           tone={summary.unassigned_count > 0 ? 'warning' : 'neutral'}
         />
@@ -127,8 +137,8 @@ export default function WorkforceReport() {
 
       <div className="report-grid">
         <ReportCard
-          title="Headcount by department"
-          description="Where the people are."
+          title={t('Headcount by department')}
+          description={t('Where the people are.')}
           columns={departmentColumns}
           rows={staffedDepartments}
           csvName="headcount-by-department"
@@ -138,15 +148,17 @@ export default function WorkforceReport() {
             data={staffedDepartments.map((row) => ({
               label: row.name,
               value: row.headcount,
-              hint: `${formatCurrency(row.average_salary)} average`,
+              hint: t('{amount} average', {
+                amount: formatCurrency(row.average_salary),
+              }),
             }))}
             formatValue={formatNumber}
           />
         </ReportCard>
 
         <ReportCard
-          title="Hires by year"
-          description="When the current workforce joined."
+          title={t('Hires by year')}
+          description={t('When the current workforce joined.')}
           columns={hireColumns}
           rows={hires}
           csvName="hires-by-year"
@@ -164,8 +176,8 @@ export default function WorkforceReport() {
       </div>
 
       <ReportCard
-        title="Payroll by department"
-        description="Total recorded salary per department."
+        title={t('Payroll by department')}
+        description={t('Total recorded salary per department.')}
         columns={departmentColumns}
         rows={staffedDepartments}
         csvName="payroll-by-department"
@@ -175,15 +187,17 @@ export default function WorkforceReport() {
           data={staffedDepartments.map((row) => ({
             label: row.name,
             value: row.total_salary,
-            hint: `${formatNumber(row.headcount)} people`,
+            hint: t('{count} people', { count: formatNumber(row.headcount) }),
           }))}
           formatValue={formatCompactCurrency}
         />
       </ReportCard>
 
       <ReportCard
-        title="Program allocation"
-        description="How many programs each person is committed to, most loaded first."
+        title={t('Program allocation')}
+        description={t(
+          'How many programs each person is committed to, most loaded first.',
+        )}
         columns={allocationColumns}
         rows={allocation}
         csvName="program-allocation"
@@ -193,11 +207,11 @@ export default function WorkforceReport() {
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Job title</th>
-                <th>Department</th>
-                <th className="meter-column">Programs</th>
-                <th>Roles</th>
+                <th>{t('Employee')}</th>
+                <th>{t('Job title')}</th>
+                <th>{t('Department')}</th>
+                <th className="meter-column">{t('Programs')}</th>
+                <th>{t('Roles')}</th>
               </tr>
             </thead>
             <tbody>
@@ -222,8 +236,8 @@ export default function WorkforceReport() {
       </ReportCard>
 
       <ReportCard
-        title="Job titles"
-        description="Headcount and average salary per title."
+        title={t('Job titles')}
+        description={t('Headcount and average salary per title.')}
         columns={titleColumns}
         rows={titles}
         csvName="job-titles"
@@ -233,7 +247,9 @@ export default function WorkforceReport() {
           data={titles.map((row) => ({
             label: row.label,
             value: row.count,
-            hint: `${formatCurrency(row.average_salary)} average`,
+            hint: t('{amount} average', {
+              amount: formatCurrency(row.average_salary),
+            }),
           }))}
           formatValue={formatNumber}
         />

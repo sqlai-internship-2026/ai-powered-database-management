@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import PageHeader from '../components/PageHeader'
 import { CloseIcon, PrinterIcon, SparkIcon } from '../components/icons'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 
 // The reporting screens live under one menu entry and switch with these tabs,
 // so the sidebar stays a list of subjects rather than a list of reports.
@@ -29,6 +30,7 @@ const emptyFilters = {
 export default function Reports() {
   const { pathname } = useLocation()
   const { can } = useAuth()
+  const t = useT()
   const { data: options, error: optionsError } = useApiData('/api/reports/filters')
 
   // A tab the role cannot open is not offered. The active tab is still matched
@@ -79,11 +81,11 @@ export default function Reports() {
   // and each one takes itself off again.
   const activeChips = []
   if (usesYears && (filters.yearFrom || filters.yearTo)) {
-    const from = filters.yearFrom || 'earliest'
-    const to = filters.yearTo || 'latest'
+    const from = filters.yearFrom || t('earliest')
+    const to = filters.yearTo || t('latest')
     activeChips.push({
       key: 'years',
-      label: `Years: ${from} to ${to}`,
+      label: t('Years: {from} to {to}', { from, to }),
       clear: () => clearOne({ yearFrom: '', yearTo: '' }),
     })
   }
@@ -91,7 +93,7 @@ export default function Reports() {
     filters.statuses.forEach((status) => {
       activeChips.push({
         key: `status-${status}`,
-        label: `Status: ${status}`,
+        label: t('Status: {status}', { status: t(status) }),
         clear: () => toggleStatus(status),
       })
     })
@@ -99,7 +101,9 @@ export default function Reports() {
   if (usesDepartment && filters.departmentId) {
     activeChips.push({
       key: 'department',
-      label: `Department: ${departmentName || filters.departmentId}`,
+      label: t('Department: {department}', {
+        department: departmentName || filters.departmentId,
+      }),
       clear: () => clearOne({ departmentId: '' }),
     })
   }
@@ -112,18 +116,20 @@ export default function Reports() {
   return (
     <>
       <PageHeader
-        eyebrow="Analytics"
-        title="Reports"
-        description="Program finance, workforce and portfolio analytics, aggregated in the database."
+        eyebrow={t('Analytics')}
+        title={t('Reports')}
+        description={t(
+          'Program finance, workforce and portfolio analytics, aggregated in the database.',
+        )}
         actions={
           <button type="button" className="button" onClick={() => window.print()}>
             <PrinterIcon size={15} />
-            Print report
+            {t('Print report')}
           </button>
         }
       />
 
-      <nav className="report-tabs" aria-label="Report sections">
+      <nav className="report-tabs" aria-label={t('Report sections')}>
         <div className="report-tabs-track">
           {visibleTabs.map((tab) => (
             <NavLink
@@ -134,7 +140,7 @@ export default function Reports() {
                 isActive ? 'report-tab active' : 'report-tab'
               }
             >
-              {tab.label}
+              {t(tab.label)}
             </NavLink>
           ))}
         </div>
@@ -142,7 +148,9 @@ export default function Reports() {
 
       {optionsError ? (
         <div className="notice notice-danger">
-          Could not load the filter options: {optionsError}
+          {t('Could not load the filter options: {message}', {
+            message: optionsError,
+          })}
         </div>
       ) : null}
 
@@ -154,12 +162,12 @@ export default function Reports() {
             {usesYears ? (
               <div className="field">
                 <span className="field-label" id="report-year-label">
-                  Investment years
+                  {t('Investment years')}
                 </span>
                 <span className="field-pair" aria-labelledby="report-year-label">
                   <select
                     value={filters.yearFrom}
-                    aria-label="First investment year"
+                    aria-label={t('First investment year')}
                     onChange={(event) =>
                       setFilters((current) => ({
                         ...current,
@@ -167,7 +175,7 @@ export default function Reports() {
                       }))
                     }
                   >
-                    <option value="">From</option>
+                    <option value="">{t('From')}</option>
                     {years.map((year) => (
                       <option
                         key={year}
@@ -178,10 +186,10 @@ export default function Reports() {
                       </option>
                     ))}
                   </select>
-                  <span className="field-separator">to</span>
+                  <span className="field-separator">{t('to')}</span>
                   <select
                     value={filters.yearTo}
-                    aria-label="Last investment year"
+                    aria-label={t('Last investment year')}
                     onChange={(event) =>
                       setFilters((current) => ({
                         ...current,
@@ -189,7 +197,7 @@ export default function Reports() {
                       }))
                     }
                   >
-                    <option value="">To</option>
+                    <option value="">{t('To')}</option>
                     {years.map((year) => (
                       <option
                         key={year}
@@ -207,7 +215,7 @@ export default function Reports() {
             {usesStatus ? (
               <div className="field">
                 <span className="field-label" id="report-status-label">
-                  Project status
+                  {t('Project status')}
                 </span>
                 <div className="filter-chips" aria-labelledby="report-status-label">
                   {(options?.statuses || []).map((entry) => {
@@ -220,7 +228,7 @@ export default function Reports() {
                         aria-pressed={on}
                         onClick={() => toggleStatus(entry.status)}
                       >
-                        {entry.status}
+                        {t(entry.status)}
                         <span className="filter-chip-count">{entry.count}</span>
                       </button>
                     )
@@ -231,7 +239,7 @@ export default function Reports() {
 
             {usesDepartment ? (
               <label className="field">
-                <span className="field-label">Department</span>
+                <span className="field-label">{t('Department')}</span>
                 <select
                   value={filters.departmentId}
                   onChange={(event) =>
@@ -241,7 +249,7 @@ export default function Reports() {
                     }))
                   }
                 >
-                  <option value="">All departments</option>
+                  <option value="">{t('All departments')}</option>
                   {(options?.departments || []).map((department) => (
                     <option key={department.id} value={department.id}>
                       {department.name}
@@ -257,7 +265,7 @@ export default function Reports() {
               to do. */}
           {activeChips.length > 0 ? (
             <div className="report-active-filters">
-              <span className="report-active-label">Filtered by</span>
+              <span className="report-active-label">{t('Filtered by')}</span>
               {activeChips.map((chip) => (
                 <button
                   key={chip.key}
@@ -267,7 +275,7 @@ export default function Reports() {
                 >
                   {chip.label}
                   <CloseIcon size={12} />
-                  <span className="visually-hidden">- remove this filter</span>
+                  <span className="visually-hidden">{t('- remove this filter')}</span>
                 </button>
               ))}
               <button
@@ -275,7 +283,7 @@ export default function Reports() {
                 className="button button-quiet button-sm"
                 onClick={() => setFilters(emptyFilters)}
               >
-                Clear filters
+                {t('Clear filters')}
               </button>
             </div>
           ) : null}
@@ -283,8 +291,9 @@ export default function Reports() {
       ) : (
         <p className="report-scope-note">
           <SparkIcon size={15} />
-          This tab writes its own query from the question you ask, so the filters
-          above the fixed reports do not apply here.
+          {t(
+            'This tab writes its own query from the question you ask, so the filters above the fixed reports do not apply here.',
+          )}
         </p>
       )}
 

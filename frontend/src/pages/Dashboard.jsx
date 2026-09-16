@@ -21,6 +21,7 @@ import {
   SparkIcon,
 } from '../components/icons'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import {
   daysUntil,
   formatCompactCurrency,
@@ -81,6 +82,7 @@ function KpiSkeleton({ count }) {
 }
 
 export default function Dashboard() {
+  const t = useT()
   const {
     data: stats,
     loading: statsLoading,
@@ -168,23 +170,27 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        eyebrow="Overview"
-        title="Dashboard"
-        description="The company at a glance, read live from the database: what is committed, what has been spent and what needs attention."
+        eyebrow={t('Overview')}
+        title={t('Dashboard')}
+        description={t(
+          'The company at a glance, read live from the database: what is committed, what has been spent and what needs attention.',
+        )}
         actions={
           canAsk ? (
             // Secondary: the Assistant's Ask further down is this page's one
             // primary action.
             <Link className="button" to="/reports/ask">
               <SparkIcon size={16} />
-              Ask your data
+              {t('Ask your data')}
             </Link>
           ) : null
         }
       />
 
       {statsError ? (
-        <div className="notice notice-danger">Could not load the summary: {statsError}</div>
+        <div className="notice notice-danger">
+          {t('Could not load the summary: {message}', { message: statsError })}
+        </div>
       ) : null}
 
       {statsLoading ? (
@@ -195,36 +201,40 @@ export default function Dashboard() {
             emphasis
             tone="primary"
             icon={<BudgetIcon size={18} />}
-            label="Total Project Budget"
+            label={t('Total Project Budget')}
             value={formatCompactCurrency(stats?.total_project_budget)}
-            hint={`Committed across ${formatNumber(stats?.total_projects)} projects`}
+            hint={t('Committed across {count} projects', {
+              count: formatNumber(stats?.total_projects),
+            })}
           />
           <StatCard
             emphasis
             tone="primary"
             icon={<InvestmentsIcon size={18} />}
-            label="Total Investments"
+            label={t('Total Investments')}
             value={formatCompactCurrency(stats?.total_investment_amount)}
-            hint="Recorded against projects to date"
+            hint={t('Recorded against projects to date')}
           />
           <StatCard
             emphasis
             tone="success"
             icon={<ActivityIcon size={18} />}
-            label="Active Projects"
+            label={t('Active Projects')}
             value={formatNumber(stats?.active_projects)}
-            hint={`Currently in execution, of ${formatNumber(stats?.total_projects)}`}
+            hint={t('Currently in execution, of {count}', {
+              count: formatNumber(stats?.total_projects),
+            })}
           />
           <StatCard
             emphasis
             tone={utilization !== null && utilization > 100 ? 'warning' : 'primary'}
             icon={<GaugeIcon size={18} />}
-            label="Budget Utilization"
+            label={t('Budget Utilization')}
             value={utilization === null ? '-' : formatPercent(utilization)}
             hint={
               utilization === null
-                ? 'Needs a budget and recorded investments'
-                : 'Investments as a share of budget'
+                ? t('Needs a budget and recorded investments')
+                : t('Investments as a share of budget')
             }
           >
             {utilization === null ? null : (
@@ -247,21 +257,21 @@ export default function Dashboard() {
         <div className="kpi-grid kpi-grid-secondary">
           <StatCard
             icon={<EmployeesIcon size={18} />}
-            label="Employees"
+            label={t('Employees')}
             value={formatNumber(stats?.total_employees)}
-            hint="On the payroll"
+            hint={t('On the payroll')}
           />
           <StatCard
             icon={<DepartmentsIcon size={18} />}
-            label="Departments"
+            label={t('Departments')}
             value={formatNumber(stats?.total_departments)}
-            hint="Organizational units"
+            hint={t('Organizational units')}
           />
           <StatCard
             icon={<ProductsIcon size={18} />}
-            label="Products"
+            label={t('Products')}
             value={formatNumber(stats?.total_products)}
-            hint="Products and subsystems in the catalog"
+            hint={t('Products and subsystems in the catalog')}
           />
         </div>
       )}
@@ -270,9 +280,11 @@ export default function Dashboard() {
         <section className="panel">
           <div className="panel-head">
             <div className="panel-heading">
-              <h2 className="panel-title">Portfolio by status</h2>
+              <h2 className="panel-title">{t('Portfolio by status')}</h2>
               <p className="panel-description">
-                Where the {formatNumber(projects.length)} recorded projects stand today.
+                {t('Where the {count} recorded projects stand today.', {
+                  count: formatNumber(projects.length),
+                })}
               </p>
             </div>
           </div>
@@ -284,13 +296,13 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : distribution.length === 0 ? (
-              <p className="panel-note">No projects have been recorded yet.</p>
+              <p className="panel-note">{t('No projects have been recorded yet.')}</p>
             ) : (
               <div className="dist-list">
                 {distribution.map((entry) => (
                   <div className="dist-row" key={entry.status}>
                     <div className="dist-head">
-                      <span className="dist-label">{entry.status}</span>
+                      <span className="dist-label">{t(entry.status)}</span>
                       <span className="dist-value">
                         <strong>{formatNumber(entry.count)}</strong>{' '}
                         {formatPercent(entry.share, 0)}
@@ -312,9 +324,11 @@ export default function Dashboard() {
         <section className="panel">
           <div className="panel-head">
             <div className="panel-heading">
-              <h2 className="panel-title">Needs attention</h2>
+              <h2 className="panel-title">{t('Needs attention')}</h2>
               <p className="panel-description">
-                Active projects past their end date or due within {ATTENTION_HORIZON_DAYS} days.
+                {t('Active projects past their end date or due within {days} days.', {
+                  days: ATTENTION_HORIZON_DAYS,
+                })}
               </p>
             </div>
           </div>
@@ -326,23 +340,29 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : projectsError ? (
-              <p className="panel-note">Could not load the projects: {projectsError}</p>
+              <p className="panel-note">
+                {t('Could not load the projects: {message}', { message: projectsError })}
+              </p>
             ) : attention.rows.length === 0 ? (
               <div className="state-block">
                 <span className="state-icon">
                   <CheckCircleIcon size={20} />
                 </span>
-                <p className="state-title">Nothing is overdue</p>
+                <p className="state-title">{t('Nothing is overdue')}</p>
                 <p className="state-text">
-                  No active project has passed its end date or reaches it within the next{' '}
-                  {ATTENTION_HORIZON_DAYS} days.
+                  {t(
+                    'No active project has passed its end date or reaches it within the next {days} days.',
+                    { days: ATTENTION_HORIZON_DAYS },
+                  )}
                 </p>
               </div>
             ) : (
               <>
                 <p className="panel-note attention-summary">
-                  {formatNumber(attention.overdue)} overdue,{' '}
-                  {formatNumber(attention.soon)} due soon
+                  {t('{overdue} overdue, {soon} due soon', {
+                    overdue: formatNumber(attention.overdue),
+                    soon: formatNumber(attention.soon),
+                  })}
                 </p>
                 <div className="attention-list">
                   {attention.rows.slice(0, 5).map(({ project, days }) => {
@@ -367,10 +387,14 @@ export default function Dashboard() {
                             }
                           >
                             {overdue
-                              ? `Overdue by ${formatNumber(Math.abs(days))} days`
+                              ? t('Overdue by {days} days', {
+                                  days: formatNumber(Math.abs(days)),
+                                })
                               : days === 0
-                                ? 'Ends today'
-                                : `Ends in ${formatNumber(days)} days`}{' '}
+                                ? t('Ends today')
+                                : t('Ends in {days} days', {
+                                    days: formatNumber(days),
+                                  })}{' '}
                             - {formatDay(project.end_date)}
                           </div>
                         </div>
@@ -380,8 +404,10 @@ export default function Dashboard() {
                 </div>
                 {attention.rows.length > 5 ? (
                   <p className="panel-note attention-more">
-                    {formatNumber(attention.rows.length - 5)} more not shown.{' '}
-                    <Link to="/projects">See all projects</Link>
+                    {t('{count} more not shown.', {
+                      count: formatNumber(attention.rows.length - 5),
+                    })}{' '}
+                    <Link to="/projects">{t('See all projects')}</Link>
                   </p>
                 ) : null}
               </>
@@ -393,11 +419,13 @@ export default function Dashboard() {
       <section className="panel">
         <div className="panel-head">
           <div className="panel-heading">
-            <h2 className="panel-title">Latest projects</h2>
-            <p className="panel-description">The five most recently started programmes.</p>
+            <h2 className="panel-title">{t('Latest projects')}</h2>
+            <p className="panel-description">
+              {t('The five most recently started programmes.')}
+            </p>
           </div>
           <Link className="panel-link" to="/projects">
-            View all projects
+            {t('View all projects')}
             <ArrowRightIcon size={15} />
           </Link>
         </div>

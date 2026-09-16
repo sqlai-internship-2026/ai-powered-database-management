@@ -14,6 +14,18 @@
         // Storage is unavailable: keep the default light theme.
       }
     </script>
+    <!-- The same for the chosen language, so <html lang> is right from the
+         first paint. Mirrors src/i18n/index.jsx; without storage it is
+         English. -->
+    <script>
+      try {
+        if (localStorage.getItem('sqlai.lang') === 'tr') {
+          document.documentElement.lang = 'tr'
+        }
+      } catch (error) {
+        // Storage is unavailable: keep the default language.
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SQL-AI Management System</title>
   </head>

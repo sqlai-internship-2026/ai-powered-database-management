@@ -4,6 +4,7 @@ import DonutChart from './DonutChart'
 import LineChart from './LineChart'
 import StatCard from '../StatCard'
 import ResultTable from '../ResultTable'
+import { translateNow } from '../../i18n'
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -45,7 +46,9 @@ export function chartFormatter(format, compact = true) {
 // A label of null is a real answer - the employees with no department - and
 // it needs a word, because an empty axis label looks like a rendering fault.
 function labelOf(value) {
-  if (value === null || value === undefined || value === '') return 'Not set'
+  if (value === null || value === undefined || value === '') {
+    return translateNow('Not set')
+  }
   return String(value)
 }
 

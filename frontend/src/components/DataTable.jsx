@@ -8,6 +8,7 @@ import {
   InboxIcon,
   SearchIcon,
 } from './icons'
+import { useLanguage } from '../i18n'
 
 // The one table behind every list screen.
 //
@@ -35,6 +36,11 @@ import {
 //
 // filters: [{ key, label, allLabel?, options? }] - a select per entry, its
 // options taken from the distinct values in the data unless given.
+//
+// Every word a screen passes in - the headers, the labels, the noun the table
+// counts itself in, the two empty-state sentences - is English, and this
+// component translates it. A screen says what its columns are, never which
+// language they are in.
 
 const DEFAULT_PAGE_SIZE = 15
 
@@ -42,14 +48,14 @@ const DEFAULT_PAGE_SIZE = 15
 // missing sorts last in both directions - an empty end date is not "earliest",
 // it is unknown, and burying it under the rows that do have one is the only
 // answer that does not mislead.
-function compareValues(a, b) {
+function compareValues(a, b, locale = 'en') {
   const aMissing = a === null || a === undefined || a === ''
   const bMissing = b === null || b === undefined || b === ''
   if (aMissing && bMissing) return 0
   if (aMissing) return 1
   if (bMissing) return -1
   if (typeof a === 'number' && typeof b === 'number') return a - b
-  return String(a).localeCompare(String(b), 'en')
+  return String(a).localeCompare(String(b), locale)
 }
 
 // What a column contributes to the search. A column that draws more than one
@@ -81,11 +87,11 @@ export default function DataTable({
   rows,
   loading = false,
   error = null,
-  emptyMessage = 'No records found.',
-  emptyTitle = 'Nothing to show',
+  emptyMessage,
+  emptyTitle,
   searchable = false,
-  searchPlaceholder = 'Search',
-  searchLabel = 'Search records',
+  searchPlaceholder,
+  searchLabel,
   filters = [],
   initialSort = null,
   pageSize = DEFAULT_PAGE_SIZE,
@@ -94,6 +100,9 @@ export default function DataTable({
   toolbarExtra = null,
   plain = false,
 }) {
+  const { language, t } = useLanguage()
+  // Thousands separators change with the language as much as month names do.
+  const locale = language === 'tr' ? 'tr-TR' : 'en-US'
   const [search, setSearch] = useState('')
   const [filterValues, setFilterValues] = useState({})
   const [sort, setSort] = useState(initialSort)
@@ -116,10 +125,13 @@ export default function DataTable({
                 .filter((value) => value !== null && value !== undefined && value !== ''),
             ),
           )
-            .sort((a, b) => compareValues(a, b))
-            .map((value) => ({ value: String(value), label: String(value) })),
+            // The value stays what the database holds, because that is what
+            // the filter compares a row against; only the label is
+            // translated, and the list is ordered by the words on screen.
+            .map((value) => ({ value: String(value), label: t(String(value)) }))
+            .sort((a, b) => compareValues(a.label, b.label, language)),
       })),
-    [filters, safeRows],
+    [filters, safeRows, t, language],
   )
 
   const filtered = useMemo(() => {
@@ -146,8 +158,10 @@ export default function DataTable({
     const read = (row) => (column.sortValue ? column.sortValue(row) : row[column.key])
     // Copied first: sorting the array the filter returned would reorder the
     // caller's rows on the screens that pass their fetched data straight in.
-    return [...filtered].sort((a, b) => compareValues(read(a), read(b)) * direction)
-  }, [filtered, columns, sort])
+    return [...filtered].sort(
+      (a, b) => compareValues(read(a), read(b), language) * direction,
+    )
+  }, [filtered, columns, sort, language])
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize))
   // Clamped rather than trusted: a filter typed on page four leaves the page
@@ -194,7 +208,7 @@ export default function DataTable({
           <span className="state-icon state-icon-danger">
             <AlertIcon size={20} />
           </span>
-          <p className="state-title">Could not load the data</p>
+          <p className="state-title">{t('Could not load the data')}</p>
           <p className="state-text">{error}</p>
         </div>
       </section>
@@ -213,7 +227,7 @@ export default function DataTable({
             />
           ))}
         </div>
-        <span className="visually-hidden">Loading records</span>
+        <span className="visually-hidden">{t('Loading records')}</span>
       </section>
     )
   }
@@ -225,7 +239,7 @@ export default function DataTable({
           <div className="data-toolbar-controls">
             {searchable ? (
               <label className="field search-field">
-                <span className="field-label">Search</span>
+                <span className="field-label">{t('Search')}</span>
                 <span className="search-control">
                   <span className="search-icon">
                     <SearchIcon size={15} />
@@ -234,8 +248,8 @@ export default function DataTable({
                     type="search"
                     className="input"
                     value={search}
-                    placeholder={searchPlaceholder}
-                    aria-label={searchLabel}
+                    placeholder={t(searchPlaceholder || 'Search')}
+                    aria-label={t(searchLabel || 'Search records')}
                     onChange={(event) => setSearch(event.target.value)}
                   />
                 </span>
@@ -244,7 +258,7 @@ export default function DataTable({
 
             {filterOptions.map((filter) => (
               <label className="field" key={filter.key}>
-                <span className="field-label">{filter.label}</span>
+                <span className="field-label">{t(filter.label)}</span>
                 <select
                   value={filterValues[filter.key] || ''}
                   onChange={(event) =>
@@ -254,7 +268,13 @@ export default function DataTable({
                     }))
                   }
                 >
-                  <option value="">{filter.allLabel || `All ${filter.label.toLowerCase()}`}</option>
+                  <option value="">
+                    {filter.allLabel
+                      ? t(filter.allLabel)
+                      : t('All {label}', {
+                          label: t(filter.label).toLocaleLowerCase(language),
+                        })}
+                  </option>
                   {filter.options.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -270,16 +290,16 @@ export default function DataTable({
           {/* What is on the screen right now, in words - a filtered table that
               only printed its own length would read as a smaller database. */}
           <div className="data-count">
-            {isNarrowed ? (
-              <>
-                <strong>{sorted.length.toLocaleString('en-US')}</strong> of{' '}
-                {safeRows.length.toLocaleString('en-US')} {noun}
-              </>
-            ) : (
-              <>
-                <strong>{safeRows.length.toLocaleString('en-US')}</strong> {noun}
-              </>
-            )}
+            {isNarrowed
+              ? t('{shown} of {total} {noun}', {
+                  shown: sorted.length.toLocaleString(locale),
+                  total: safeRows.length.toLocaleString(locale),
+                  noun: t(noun),
+                })
+              : t('{count} {noun}', {
+                  count: safeRows.length.toLocaleString(locale),
+                  noun: t(noun),
+                })}
           </div>
         </div>
       ) : null}
@@ -295,20 +315,22 @@ export default function DataTable({
               to the wrong place. */}
           {isNarrowed ? (
             <>
-              <p className="state-title">No matching {noun}</p>
+              <p className="state-title">
+                {t('No matching {noun}', { noun: t(noun) })}
+              </p>
               <p className="state-text">
-                Nothing here matches the current search and filters.
+                {t('Nothing here matches the current search and filters.')}
               </p>
               <div className="state-actions">
                 <button type="button" className="button button-sm" onClick={clearAll}>
-                  Clear search and filters
+                  {t('Clear search and filters')}
                 </button>
               </div>
             </>
           ) : (
             <>
-              <p className="state-title">{emptyTitle}</p>
-              <p className="state-text">{emptyMessage}</p>
+              <p className="state-title">{t(emptyTitle || 'Nothing to show')}</p>
+              <p className="state-text">{t(emptyMessage || 'No records found.')}</p>
             </>
           )}
         </div>
@@ -348,11 +370,17 @@ export default function DataTable({
                           className={isSorted ? 'sort-button is-sorted' : 'sort-button'}
                           onClick={() => toggleSort(column)}
                         >
-                          {column.header}
+                          {typeof column.header === 'string'
+                            ? t(column.header)
+                            : column.header}
                           <SortIcon direction={isSorted ? sort.direction : 'asc'} />
                         </button>
                       ) : (
-                        <span className="data-head-static">{column.header}</span>
+                        <span className="data-head-static">
+                          {typeof column.header === 'string'
+                            ? t(column.header)
+                            : column.header}
+                        </span>
                       )}
                     </th>
                   )
@@ -402,16 +430,17 @@ export default function DataTable({
       {pageCount > 1 ? (
         <div className="data-pager">
           <span>
-            {`${(first + 1).toLocaleString('en-US')}-${Math.min(
-              first + pageSize,
-              sorted.length,
-            ).toLocaleString('en-US')} of ${sorted.length.toLocaleString('en-US')}`}
+            {t('{from}-{to} of {total}', {
+              from: (first + 1).toLocaleString(locale),
+              to: Math.min(first + pageSize, sorted.length).toLocaleString(locale),
+              total: sorted.length.toLocaleString(locale),
+            })}
           </span>
           <div className="data-pager-controls">
             <button
               type="button"
               className="icon-button"
-              aria-label="Previous page"
+              aria-label={t('Previous page')}
               disabled={current === 0}
               onClick={() => setPage(current - 1)}
             >
@@ -423,7 +452,7 @@ export default function DataTable({
             <button
               type="button"
               className="icon-button"
-              aria-label="Next page"
+              aria-label={t('Next page')}
               disabled={current >= pageCount - 1}
               onClick={() => setPage(current + 1)}
             >

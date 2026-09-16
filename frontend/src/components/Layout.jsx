@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import { useT } from '../i18n'
 
 // The shell. It owns the two pieces of state the sidebar and the topbar both
 // need - whether the desktop sidebar is a rail, and whether the phone drawer is
@@ -27,6 +28,7 @@ function readCollapsed() {
 
 export default function Layout() {
   const { pathname } = useLocation()
+  const t = useT()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const menuButtonRef = useRef(null)
@@ -92,7 +94,7 @@ export default function Layout() {
         <button
           type="button"
           className="drawer-overlay"
-          aria-label="Close the navigation menu"
+          aria-label={t('Close the navigation menu')}
           onClick={closeDrawer}
         />
       ) : null}

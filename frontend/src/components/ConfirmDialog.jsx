@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useT } from '../i18n'
 
 // The one place this console asks "are you sure?".
 //
@@ -19,12 +20,13 @@ export default function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   tone = 'danger',
   onConfirm,
   onCancel,
 }) {
+  const t = useT()
   const dialogRef = useRef(null)
   const cancelRef = useRef(null)
   const confirmRef = useRef(null)
@@ -107,7 +109,7 @@ export default function ConfirmDialog({
             ref={cancelRef}
             onClick={() => onCancel?.()}
           >
-            {cancelLabel}
+            {cancelLabel || t('Cancel')}
           </button>
           <button
             type="button"
@@ -115,7 +117,7 @@ export default function ConfirmDialog({
             ref={confirmRef}
             onClick={() => onConfirm?.()}
           >
-            {confirmLabel}
+            {confirmLabel || t('Confirm')}
           </button>
         </div>
       </div>

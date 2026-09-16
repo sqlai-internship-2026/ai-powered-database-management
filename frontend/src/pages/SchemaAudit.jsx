@@ -13,6 +13,7 @@ import {
   SparkIcon,
 } from '../components/icons'
 import { apiPost, useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { formatDateTime, formatNumber } from '../utils/format'
 
 const severityFilters = [
@@ -31,6 +32,7 @@ function readable(text) {
 // The audit returns statements as text on purpose, so the only thing the page
 // can do with them is hand them to the user.
 function CopyButton({ text, label }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
 
   async function copy() {
@@ -49,33 +51,35 @@ function CopyButton({ text, label }) {
         type="button"
         className="copy-button"
         onClick={copy}
-        aria-label={label || 'Copy this statement'}
+        aria-label={label || t('Copy this statement')}
       >
         {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? t('Copied') : t('Copy')}
       </button>
       {/* The button changing its own label is invisible to anyone not looking
           at it, so the same fact is announced. */}
       <span className="visually-hidden" role="status" aria-live="polite">
-        {copied ? 'Copied to the clipboard' : ''}
+        {copied ? t('Copied to the clipboard') : ''}
       </span>
     </>
   )
 }
 
 function Remediation({ remediation }) {
+  const t = useT()
+
   return (
     <div className="remediation">
       <div className="remediation-head">
         <span className="remediation-label">{remediation.label}</span>
         {remediation.recommended ? (
-          <span className="chip chip-recommended">Recommended</span>
+          <span className="chip chip-recommended">{t('Recommended')}</span>
         ) : null}
         <span className={`chip chip-risk-${remediation.risk}`}>
-          {remediation.risk} risk
+          {t('{risk} risk', { risk: t(remediation.risk) })}
         </span>
         {remediation.requires_decision ? (
-          <span className="chip chip-decision">Your call</span>
+          <span className="chip chip-decision">{t('Your call')}</span>
         ) : null}
       </div>
       {remediation.note ? (
@@ -85,7 +89,9 @@ function Remediation({ remediation }) {
         <div className="code-block">
           <CopyButton
             text={remediation.ddl}
-            label={`Copy the statement for ${remediation.label}`}
+            label={t('Copy the statement for {label}', {
+              label: remediation.label,
+            })}
           />
           <pre>{remediation.ddl}</pre>
         </div>
@@ -102,6 +108,8 @@ function Remediation({ remediation }) {
 // it were written by the audit and need no model, so an unreachable endpoint
 // costs the reader a paragraph rather than the answer.
 function Explanation({ state, onRetry }) {
+  const t = useT()
+
   if (!state || state.loading) {
     // A skeleton rather than a sentence in italics: it says the paragraph is
     // on its way and holds roughly the room it will take, so the column does
@@ -111,7 +119,9 @@ function Explanation({ state, onRetry }) {
         <div className="skeleton skeleton-line" style={{ width: '96%' }} />
         <div className="skeleton skeleton-line" style={{ width: '88%' }} />
         <div className="skeleton skeleton-line" style={{ width: '72%' }} />
-        <span className="visually-hidden">Asking the model to explain this</span>
+        <span className="visually-hidden">
+          {t('Asking the model to explain this')}
+        </span>
       </div>
     )
   }
@@ -123,10 +133,10 @@ function Explanation({ state, onRetry }) {
     return (
       <div className="explanation-error">
         <p className="explanation-error-text">
-          Could not explain this one: {state.error}
+          {t('Could not explain this one: {message}', { message: state.error })}
         </p>
         <button type="button" className="explanation-retry" onClick={onRetry}>
-          Try again
+          {t('Try again')}
         </button>
       </div>
     )
@@ -136,8 +146,10 @@ function Explanation({ state, onRetry }) {
     <>
       <p className="explanation">{state.text}</p>
       <p className="explanation-meta">
-        Written by {state.generator}. The statements beside it come from the
-        audit, not from the model.
+        {t(
+          'Written by {generator}. The statements beside it come from the audit, not from the model.',
+          { generator: state.generator },
+        )}
       </p>
     </>
   )
@@ -148,6 +160,7 @@ function Explanation({ state, onRetry }) {
 // the message names the constraint and the clause, which is the detail you
 // want once you have decided to look, not the thing you scan thirteen of.
 function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
+  const t = useT()
   const fixes = finding.remediations
 
   return (
@@ -164,7 +177,7 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
       >
         <span className={`badge badge-${finding.severity}`}>
           <span className="badge-dot" aria-hidden="true" />
-          {finding.severity}
+          {t(finding.severity)}
         </span>
 
         <span className="finding-head-text">
@@ -177,12 +190,16 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
 
         <span className="finding-head-meta">
           {finding.confidence === 'heuristic' ? (
-            <span className="chip">Heuristic</span>
+            <span className="chip">{t('Heuristic')}</span>
           ) : null}
           <span className="finding-fix-count">
-            {fixes.length} {fixes.length === 1 ? 'fix' : 'fixes'}
+            {fixes.length === 1
+              ? t('{count} fix', { count: fixes.length })
+              : t('{count} fixes', { count: fixes.length })}
           </span>
-          <span className="finding-toggle">{expanded ? 'Close' : 'Explain'}</span>
+          <span className="finding-toggle">
+            {expanded ? t('Close') : t('Explain')}
+          </span>
         </span>
       </button>
 
@@ -201,8 +218,10 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
             <section className="finding-column">
               <h4 className="finding-column-heading">
                 <SparkIcon size={13} />
-                What this means
-                <span className="source-tag source-tag-model">Written by a model</span>
+                {t('What this means')}
+                <span className="source-tag source-tag-model">
+                  {t('Written by a model')}
+                </span>
               </h4>
               <Explanation state={explanation} onRetry={onRetry} />
             </section>
@@ -210,12 +229,12 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
             <section className="finding-column finding-column-fixes">
               <h4 className="finding-column-heading">
                 <SchemaIcon size={13} />
-                How to fix it
-                <span className="source-tag">From the audit</span>
+                {t('How to fix it')}
+                <span className="source-tag">{t('From the audit')}</span>
               </h4>
               {fixes.length === 0 ? (
                 <p className="explanation-meta">
-                  The audit has no statement to suggest for this one.
+                  {t('The audit has no statement to suggest for this one.')}
                 </p>
               ) : (
                 <div className="remediation-list">
@@ -228,8 +247,9 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
                 </div>
               )}
               <p className="finding-apply-note">
-                Nothing here runs by itself. Copy a statement, read it, and run
-                it where you would run any other migration.
+                {t(
+                  'Nothing here runs by itself. Copy a statement, read it, and run it where you would run any other migration.',
+                )}
               </p>
             </section>
           </div>
@@ -240,6 +260,7 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
 }
 
 function RuleCatalog({ onClose }) {
+  const t = useT()
   const { data: rules, loading, error } = useApiData('/api/schema-audit/rules', [])
 
   return (
@@ -247,31 +268,35 @@ function RuleCatalog({ onClose }) {
       <div className="panel-head">
         <div className="panel-heading">
           <h2 className="panel-title" id="rule-catalog-heading">
-            Rule catalog
+            {t('Rule catalog')}
           </h2>
           <p className="panel-description">
-            Every check the audit runs, and what each one looks for.
+            {t('Every check the audit runs, and what each one looks for.')}
           </p>
         </div>
         <button type="button" className="button button-sm" onClick={onClose}>
-          Hide rules
+          {t('Hide rules')}
         </button>
       </div>
 
       {loading ? (
-        <StateBlock variant="loading" title="Loading rules" lines={5} />
+        <StateBlock variant="loading" title={t('Loading rules')} lines={5} />
       ) : error ? (
-        <StateBlock variant="error" title="Could not load the rules" text={error} />
+        <StateBlock
+          variant="error"
+          title={t('Could not load the rules')}
+          text={error}
+        />
       ) : (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Rule</th>
-                <th>Name</th>
-                <th>Severity</th>
-                <th>Category</th>
-                <th>Checks for</th>
+                <th>{t('Rule')}</th>
+                <th>{t('Name')}</th>
+                <th>{t('Severity')}</th>
+                <th>{t('Category')}</th>
+                <th>{t('Checks for')}</th>
               </tr>
             </thead>
             <tbody>
@@ -282,7 +307,7 @@ function RuleCatalog({ onClose }) {
                   <td>
                     <span className={`badge badge-${rule.severity}`}>
                       <span className="badge-dot" aria-hidden="true" />
-                      {rule.severity}
+                      {t(rule.severity)}
                     </span>
                   </td>
                   <td>{rule.category}</td>
@@ -306,6 +331,7 @@ function findingKey(finding) {
 }
 
 export default function SchemaAudit() {
+  const t = useT()
   const { data: report, loading, error } = useApiData('/api/schema-audit')
   const [severity, setSeverity] = useState('all')
   const [search, setSearch] = useState('')
@@ -379,9 +405,9 @@ export default function SchemaAudit() {
   if (loading) {
     return (
       <>
-        <PageHeader eyebrow="Database" title="Schema Audit" />
+        <PageHeader eyebrow={t('Database')} title={t('Schema Audit')} />
         <div className="card">
-          <StateBlock variant="loading" title="Analysing the schema" lines={6} />
+          <StateBlock variant="loading" title={t('Analysing the schema')} lines={6} />
         </div>
       </>
     )
@@ -390,11 +416,11 @@ export default function SchemaAudit() {
   if (error) {
     return (
       <>
-        <PageHeader eyebrow="Database" title="Schema Audit" />
+        <PageHeader eyebrow={t('Database')} title={t('Schema Audit')} />
         <div className="card">
           <StateBlock
             variant="error"
-            title="Could not run the audit"
+            title={t('Could not run the audit')}
             text={error}
           />
         </div>
@@ -408,9 +434,12 @@ export default function SchemaAudit() {
   return (
     <>
       <PageHeader
-        eyebrow="Database"
-        title="Schema Audit"
-        description={`Structural review of the "${report.schema}" schema against ${report.scanned.rules} rules.`}
+        eyebrow={t('Database')}
+        title={t('Schema Audit')}
+        description={t('Structural review of the "{schema}" schema against {count} rules.', {
+          schema: report.schema,
+          count: report.scanned.rules,
+        })}
       />
 
       {/* Visible, and no larger than it needs to be: one line saying the audit
@@ -418,39 +447,44 @@ export default function SchemaAudit() {
       <p className="audit-readonly">
         <LockIcon size={15} />
         <span>
-          <strong>Read-only.</strong> The audit reads the catalog and writes out
-          the statements it would suggest - nothing is applied to the database,
-          here or anywhere else. Review every statement before you run it.
+          <strong>{t('Read-only.')}</strong>{' '}
+          {t(
+            'The audit reads the catalog and writes out the statements it would suggest - nothing is applied to the database, here or anywhere else. Review every statement before you run it.',
+          )}
         </span>
       </p>
 
       <div className="stat-grid audit-summary">
         <StatCard
-          label="Findings"
+          label={t('Findings')}
           value={formatNumber(report.summary.total)}
-          hint={`${report.scanned.tables} tables, ${report.scanned.foreign_keys} foreign keys, ${report.scanned.indexes} indexes`}
+          hint={t('{tables} tables, {keys} foreign keys, {indexes} indexes', {
+            tables: report.scanned.tables,
+            keys: report.scanned.foreign_keys,
+            indexes: report.scanned.indexes,
+          })}
           icon={<SchemaIcon size={17} />}
           tone="primary"
           emphasis
         />
         <StatCard
-          label="Errors"
+          label={t('Errors')}
           value={formatNumber(report.summary.error)}
-          hint="Break integrity or block work"
+          hint={t('Break integrity or block work')}
           icon={<AlertIcon size={17} />}
           tone={report.summary.error > 0 ? 'danger' : 'neutral'}
         />
         <StatCard
-          label="Warnings"
+          label={t('Warnings')}
           value={formatNumber(report.summary.warning)}
-          hint="Worth fixing deliberately"
+          hint={t('Worth fixing deliberately')}
           icon={<AlertIcon size={17} />}
           tone={report.summary.warning > 0 ? 'warning' : 'neutral'}
         />
         <StatCard
-          label="Info"
+          label={t('Info')}
           value={formatNumber(report.summary.info)}
-          hint="Consistency and documentation"
+          hint={t('Consistency and documentation')}
           icon={<InfoIcon size={17} />}
         />
       </div>
@@ -459,7 +493,7 @@ export default function SchemaAudit() {
         <div className="audit-toolbar-controls">
           <div className="field">
             <span className="field-label" id="audit-severity-label">
-              Severity
+              {t('Severity')}
             </span>
             <div className="filter-chips" aria-labelledby="audit-severity-label">
               {severityFilters.map((filter) => {
@@ -472,7 +506,7 @@ export default function SchemaAudit() {
                     aria-pressed={on}
                     onClick={() => setSeverity(filter.key)}
                   >
-                    {filter.label}
+                    {t(filter.label)}
                     <span className="filter-chip-count">
                       {filter.key === 'all'
                         ? report.summary.total
@@ -485,7 +519,7 @@ export default function SchemaAudit() {
           </div>
 
           <label className="field search-field">
-            <span className="field-label">Search findings</span>
+            <span className="field-label">{t('Search findings')}</span>
             <span className="search-control">
               <span className="search-icon">
                 <SearchIcon size={15} />
@@ -494,7 +528,7 @@ export default function SchemaAudit() {
                 type="search"
                 className="input"
                 value={search}
-                placeholder="Rule, table, column or message"
+                placeholder={t('Rule, table, column or message')}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </span>
@@ -505,17 +539,12 @@ export default function SchemaAudit() {
           {/* What is on the screen right now, in words - a filtered audit that
               only printed its own length would read as a cleaner schema. */}
           <span className="audit-count" role="status" aria-live="polite">
-            {narrowed ? (
-              <>
-                <strong>{formatNumber(findings.length)}</strong> of {formatNumber(total)}{' '}
-                findings
-              </>
-            ) : (
-              <>
-                <strong>{formatNumber(total)}</strong>{' '}
-                {total === 1 ? 'finding' : 'findings'}
-              </>
-            )}
+            {narrowed
+              ? t('{shown} of {total} findings', {
+                  shown: formatNumber(findings.length),
+                  total: formatNumber(total),
+                })
+              : t('{count} findings', { count: formatNumber(total) })}
           </span>
           <button
             type="button"
@@ -523,7 +552,7 @@ export default function SchemaAudit() {
             aria-expanded={showRules}
             onClick={() => setShowRules((visible) => !visible)}
           >
-            {showRules ? 'Hide rules' : 'Show rules'}
+            {showRules ? t('Hide rules') : t('Show rules')}
           </button>
         </div>
       </div>
@@ -533,11 +562,11 @@ export default function SchemaAudit() {
       {findings.length === 0 ? (
         <div className="card">
           <StateBlock
-            title={narrowed ? 'No findings match' : 'Nothing to report'}
+            title={narrowed ? t('No findings match') : t('Nothing to report')}
             text={
               narrowed
-                ? 'Nothing at this severity matches the current search.'
-                : 'The audit ran and found nothing against these rules.'
+                ? t('Nothing at this severity matches the current search.')
+                : t('The audit ran and found nothing against these rules.')
             }
             actions={
               narrowed ? (
@@ -549,7 +578,7 @@ export default function SchemaAudit() {
                     setSearch('')
                   }}
                 >
-                  Clear search and filters
+                  {t('Clear search and filters')}
                 </button>
               ) : null
             }
@@ -570,7 +599,11 @@ export default function SchemaAudit() {
         </div>
       )}
 
-      <p className="audit-footer">Generated at {formatDateTime(report.generated_at)}</p>
+      <p className="audit-footer">
+        {t('Generated at {timestamp}', {
+          timestamp: formatDateTime(report.generated_at),
+        })}
+      </p>
     </>
   )
 }

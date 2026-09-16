@@ -15,6 +15,7 @@ import {
   InvestmentsIcon,
 } from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
+import { useT } from '../../i18n'
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -75,6 +76,7 @@ const projectColumns = [
 
 export default function FinancialReport() {
   const { filters } = useOutletContext()
+  const t = useT()
   const query = buildQuery({
     year_from: filters.yearFrom,
     year_to: filters.yearTo,
@@ -87,7 +89,7 @@ export default function FinancialReport() {
       <div className="card">
         <StateBlock
           variant="error"
-          title="Could not load the financial report"
+          title={t('Could not load the financial report')}
           text={error}
         />
       </div>
@@ -96,7 +98,11 @@ export default function FinancialReport() {
   if (!data) {
     return (
       <div className="card">
-        <StateBlock variant="loading" title="Building the financial report" lines={6} />
+        <StateBlock
+          variant="loading"
+          title={t('Building the financial report')}
+          lines={6}
+        />
       </div>
     )
   }
@@ -107,34 +113,38 @@ export default function FinancialReport() {
     <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
-          label="Total Budget"
+          label={t('Total Budget')}
           value={formatCompactCurrency(summary.total_budget)}
-          hint={`${formatNumber(summary.project_count)} programs in scope`}
+          hint={t('{count} programs in scope', {
+            count: formatNumber(summary.project_count),
+          })}
           icon={<BudgetIcon size={17} />}
           tone="primary"
         />
         <StatCard
-          label="Committed"
+          label={t('Committed')}
           value={formatCompactCurrency(summary.total_invested)}
-          hint={`${formatNumber(summary.investment_count)} investment records`}
+          hint={t('{count} investment records', {
+            count: formatNumber(summary.investment_count),
+          })}
           icon={<InvestmentsIcon size={17} />}
         />
         <StatCard
-          label="Budget Utilization"
+          label={t('Budget Utilization')}
           value={formatPercent(summary.utilization)}
-          hint="Committed against total budget"
+          hint={t('Committed against total budget')}
           icon={<GaugeIcon size={17} />}
         />
         <StatCard
-          label="Uncommitted"
+          label={t('Uncommitted')}
           value={formatCompactCurrency(summary.total_remaining)}
-          hint="Budget not yet drawn"
+          hint={t('Budget not yet drawn')}
           icon={<CheckCircleIcon size={17} />}
         />
         <StatCard
-          label="Over Budget"
+          label={t('Over Budget')}
           value={formatNumber(summary.over_budget_count)}
-          hint="Programs past 100% utilization"
+          hint={t('Programs past 100% utilization')}
           icon={<AlertIcon size={17} />}
           tone={summary.over_budget_count > 0 ? 'danger' : 'neutral'}
         />
@@ -142,8 +152,10 @@ export default function FinancialReport() {
 
       <div className="report-grid">
         <ReportCard
-          title="Committed investment by year"
-          description="Money committed against the programs in scope, by the year it was recorded."
+          title={t('Committed investment by year')}
+          description={t(
+            'Money committed against the programs in scope, by the year it was recorded.',
+          )}
           columns={trendColumns}
           rows={trend}
           csvName="investment-by-year"
@@ -153,15 +165,15 @@ export default function FinancialReport() {
             data={trend.map((row) => ({
               label: String(row.year),
               value: row.amount,
-              hint: `${formatNumber(row.count)} records`,
+              hint: t('{count} records', { count: formatNumber(row.count) }),
             }))}
             formatValue={formatCompactCurrency}
           />
         </ReportCard>
 
         <ReportCard
-          title="Committed investment by type"
-          description="What the money was spent on, largest first."
+          title={t('Committed investment by type')}
+          description={t('What the money was spent on, largest first.')}
           columns={typeColumns}
           rows={byType}
           csvName="investment-by-type"
@@ -169,9 +181,11 @@ export default function FinancialReport() {
         >
           <BarChart
             data={byType.map((row) => ({
-              label: row.label,
+              // An investment type is a label rather than a name, so the chart
+              // draws it in the reader's language.
+              label: t(row.label),
               value: row.amount,
-              hint: `${formatNumber(row.count)} records`,
+              hint: t('{count} records', { count: formatNumber(row.count) }),
             }))}
             formatValue={formatCompactCurrency}
           />
@@ -179,8 +193,10 @@ export default function FinancialReport() {
       </div>
 
       <ReportCard
-        title="Budget against committed spend"
-        description="One row per program. The meter fills to 100% of budget; anything past it is over-committed."
+        title={t('Budget against committed spend')}
+        description={t(
+          'One row per program. The meter fills to 100% of budget; anything past it is over-committed.',
+        )}
         columns={projectColumns}
         rows={projects}
         csvName="program-budget"
@@ -190,12 +206,12 @@ export default function FinancialReport() {
           <table>
             <thead>
               <tr>
-                <th>Program</th>
-                <th>Status</th>
-                <th className="align-right">Budget</th>
-                <th className="align-right">Committed</th>
-                <th className="align-right">Remaining</th>
-                <th className="meter-column">Utilization</th>
+                <th>{t('Program')}</th>
+                <th>{t('Status')}</th>
+                <th className="align-right">{t('Budget')}</th>
+                <th className="align-right">{t('Committed')}</th>
+                <th className="align-right">{t('Remaining')}</th>
+                <th className="meter-column">{t('Utilization')}</th>
               </tr>
             </thead>
             <tbody>
@@ -219,9 +235,9 @@ export default function FinancialReport() {
                       state={project.over_budget ? 'critical' : undefined}
                       note={
                         project.over_budget
-                          ? 'Over budget'
+                          ? t('Over budget')
                           : meterState(project.utilization) === 'warning'
-                            ? 'Near limit'
+                            ? t('Near limit')
                             : null
                       }
                     />

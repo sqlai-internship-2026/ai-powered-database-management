@@ -1,4 +1,5 @@
 import { AlertIcon, InboxIcon } from './icons'
+import { useT } from '../i18n'
 
 // The three things a panel can have instead of content, said the way the list
 // screens already say them: a skeleton while the answer is on its way, a
@@ -15,6 +16,8 @@ export default function StateBlock({
   actions = null,
   lines = 5,
 }) {
+  const t = useT()
+
   if (variant === 'loading') {
     return (
       <div className="skeleton-rows" aria-busy="true">
@@ -25,7 +28,7 @@ export default function StateBlock({
             style={{ width: index === 0 ? '34%' : `${94 - (index % 4) * 13}%` }}
           />
         ))}
-        <span className="visually-hidden">{title || 'Loading'}</span>
+        <span className="visually-hidden">{title || t('Loading')}</span>
       </div>
     )
   }

@@ -6,7 +6,11 @@
 // is still held - it is the last true answer, and blanking it would make every
 // filter change a flash of empty cards - but a line above it now says what is
 // happening, and says it to a screen reader as well.
+import { useT } from '../i18n'
+
 export default function ReportBody({ loading, children }) {
+  const t = useT()
+
   return (
     <div
       className={loading ? 'report-body is-refetching' : 'report-body'}
@@ -16,7 +20,7 @@ export default function ReportBody({ loading, children }) {
         {loading ? (
           <>
             <span className="report-refetch-dot" aria-hidden="true" />
-            Updating for the selected filters
+            {t('Updating for the selected filters')}
           </>
         ) : null}
       </p>

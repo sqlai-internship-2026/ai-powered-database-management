@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../../i18n'
 
 // One series over a time axis, for the runs too long to read as columns. The
 // same axis, gridlines and scale factor as ColumnChart, so a report that shows
@@ -25,12 +26,17 @@ export default function LineChart({
   data,
   formatValue = (value) => value,
   formatTick,
-  emptyMessage = 'Nothing to chart for this selection.',
+  emptyMessage,
 }) {
+  const t = useT()
   const [hovered, setHovered] = useState(null)
 
   if (!data || data.length === 0) {
-    return <p className="chart-empty">{emptyMessage}</p>
+    return (
+      <p className="chart-empty">
+        {emptyMessage || t('Nothing to chart for this selection.')}
+      </p>
+    )
   }
 
   // A single point has no line to draw, and dividing by zero below would put

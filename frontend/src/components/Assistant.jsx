@@ -3,6 +3,7 @@ import AutoChart from './charts/AutoChart'
 import ResultTable from './ResultTable'
 import { CodeIcon, SparkIcon } from './icons'
 import { apiPost, useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { describeRowCount } from '../utils/format'
 
 // Ask a question in English, read the answer in English, check it against the
@@ -28,6 +29,7 @@ import { describeRowCount } from '../utils/format'
 // directly under it means a reader never has to take it on trust.
 
 function Answer({ data }) {
+  const t = useT()
   const [showSql, setShowSql] = useState(false)
   // "table" is not a chart, and a figure card above a one-row table would say
   // the same thing twice.
@@ -39,8 +41,9 @@ function Answer({ data }) {
         <p className="chat-summary">{data.answer}</p>
       ) : (
         <p className="chat-summary chat-summary-missing">
-          The rows are below. The model was not able to write a summary of them
-          this time.
+          {t(
+            'The rows are below. The model was not able to write a summary of them this time.',
+          )}
         </p>
       )}
 
@@ -76,7 +79,7 @@ function Answer({ data }) {
           onClick={() => setShowSql((shown) => !shown)}
         >
           <CodeIcon size={14} />
-          {showSql ? 'Hide SQL' : 'Show SQL'}
+          {showSql ? t('Hide SQL') : t('Show SQL')}
         </button>
       </div>
 
@@ -90,6 +93,7 @@ function Answer({ data }) {
 }
 
 export default function Assistant() {
+  const t = useT()
   const { data: examples } = useApiData('/api/reports/ask/examples')
   const [question, setQuestion] = useState('')
   const [turns, setTurns] = useState([])
@@ -130,9 +134,9 @@ export default function Assistant() {
     <section className="chat">
       <header className="chat-head">
         <div className="chat-head-text">
-          <h2 className="chat-title">Assistant</h2>
+          <h2 className="chat-title">{t('Assistant')}</h2>
           <p className="chat-description">
-            Ask about the data in English. Answers appear newest first.
+            {t('Ask about the data in English. Answers appear newest first.')}
           </p>
         </div>
         {/* Said as a label rather than only in prose: the box looks like a
@@ -140,7 +144,7 @@ export default function Assistant() {
             before they press Ask, not after the answer comes back wrong. */}
         <span className="badge chat-scope-badge">
           <span className="badge-dot" aria-hidden="true" />
-          One question at a time - no memory of the last one
+          {t('One question at a time - no memory of the last one')}
         </span>
       </header>
 
@@ -155,7 +159,9 @@ export default function Assistant() {
           type="text"
           className="ask-input"
           value={question}
-          placeholder="Which employees work on the Tactical Radar System project?"
+          placeholder={t(
+            'Which employees work on the Tactical Radar System project?',
+          )}
           maxLength={500}
           disabled={asking}
           onChange={(event) => setQuestion(event.target.value)}
@@ -166,13 +172,13 @@ export default function Assistant() {
           disabled={asking || question.trim().length < 3}
         >
           <SparkIcon size={15} />
-          {asking ? 'Asking...' : 'Ask'}
+          {asking ? t('Asking...') : t('Ask')}
         </button>
       </form>
 
       {turns.length === 0 && !asking && examples?.questions?.length ? (
         <div className="chat-empty">
-          <span className="field-label">Try one of these</span>
+          <span className="field-label">{t('Try one of these')}</span>
           <div className="chat-suggestions">
             {examples.questions.map((example) => (
               <button
@@ -194,7 +200,7 @@ export default function Assistant() {
             <p className="chat-question">{pending}</p>
             <div className="chat-answer chat-pending" role="status">
               <span className="chat-pending-dot" aria-hidden="true" />
-              Writing the query and running it...
+              {t('Writing the query and running it...')}
             </div>
           </article>
         ) : null}

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { roleLabel } from '../auth/permissions'
 import { initials } from '../utils/format'
+import { useT } from '../i18n'
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -63,7 +64,8 @@ export default function Sidebar({
   closeButtonRef,
 }) {
   const { username, fullName, logout, role, can } = useAuth()
-  const displayName = fullName || username
+  const t = useT()
+  const displayName = fullName || username || t('Unknown user')
   const visibleGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -75,7 +77,7 @@ export default function Sidebar({
     <aside
       id="app-sidebar"
       className={drawerOpen ? 'sidebar is-open' : 'sidebar'}
-      aria-label="Main navigation"
+      aria-label={t('Main navigation')}
     >
       <div className="sidebar-brand">
         <span className="sidebar-brand-mark" aria-hidden="true">
@@ -83,7 +85,7 @@ export default function Sidebar({
         </span>
         <div className="sidebar-brand-text">
           <div className="sidebar-brand-title">SQL-AI</div>
-          <div className="sidebar-brand-subtitle">Management System</div>
+          <div className="sidebar-brand-subtitle">{t('Management System')}</div>
         </div>
 
         <button
@@ -91,7 +93,7 @@ export default function Sidebar({
           className="sidebar-icon-button sidebar-close"
           onClick={onCloseDrawer}
           ref={closeButtonRef}
-          aria-label="Close the navigation menu"
+          aria-label={t('Close the navigation menu')}
         >
           <CloseIcon size={18} />
         </button>
@@ -101,9 +103,9 @@ export default function Sidebar({
         {visibleGroups.map((group) => (
           <div className="sidebar-group" key={group.label}>
             <div className="sidebar-group-label" aria-hidden={collapsed}>
-              {group.label}
+              {t(group.label)}
             </div>
-            <nav className="sidebar-nav" aria-label={group.label}>
+            <nav className="sidebar-nav" aria-label={t(group.label)}>
               {group.items.map(({ to, label, Icon }) => (
                 <NavLink
                   key={to}
@@ -114,12 +116,12 @@ export default function Sidebar({
                   // Collapsed, the label is gone from the screen but not from
                   // the link: the accessible name stays, and the native
                   // tooltip gives a sighted reader the same word back.
-                  title={collapsed ? label : undefined}
+                  title={collapsed ? t(label) : undefined}
                 >
                   <span className="sidebar-link-icon">
                     <Icon size={18} />
                   </span>
-                  <span className="sidebar-link-label">{label}</span>
+                  <span className="sidebar-link-label">{t(label)}</span>
                 </NavLink>
               ))}
             </nav>
@@ -136,8 +138,8 @@ export default function Sidebar({
             <div className="sidebar-user-name" title={displayName}>
               {displayName}
             </div>
-            <div className="sidebar-user-role" title={roleLabel(role)}>
-              {roleLabel(role)}
+            <div className="sidebar-user-role" title={t(roleLabel(role))}>
+              {t(roleLabel(role))}
             </div>
           </div>
         </div>
@@ -146,10 +148,10 @@ export default function Sidebar({
           type="button"
           className="sidebar-action"
           onClick={logout}
-          title={collapsed ? 'Log out' : undefined}
+          title={collapsed ? t('Log out') : undefined}
         >
           <LogOutIcon size={18} />
-          <span className="sidebar-action-label">Log out</span>
+          <span className="sidebar-action-label">{t('Log out')}</span>
         </button>
 
         {/* Desktop only: narrow the sidebar to a rail. It sits with the other
@@ -160,11 +162,11 @@ export default function Sidebar({
           type="button"
           className="sidebar-action sidebar-collapse"
           onClick={onToggleCollapse}
-          aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-          title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+          aria-label={collapsed ? t('Expand the sidebar') : t('Collapse the sidebar')}
+          title={collapsed ? t('Expand the sidebar') : t('Collapse the sidebar')}
         >
           {collapsed ? <ChevronRightIcon size={18} /> : <ChevronLeftIcon size={18} />}
-          <span className="sidebar-action-label">Collapse</span>
+          <span className="sidebar-action-label">{t('Collapse')}</span>
         </button>
       </div>
     </aside>

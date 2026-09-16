@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { roleLabel } from '../auth/permissions'
 import { LockIcon } from '../components/icons'
+import { useT } from '../i18n'
 
 // What a signed-in reader sees on a page their role does not include.
 //
@@ -11,6 +12,7 @@ import { LockIcon } from '../components/icons'
 // offered the only thing that still works: logging out.
 export default function AccessDenied() {
   const { role, can, logout } = useAuth()
+  const t = useT()
 
   return (
     <section className="card" aria-labelledby="access-denied-title">
@@ -19,21 +21,25 @@ export default function AccessDenied() {
           <LockIcon size={20} />
         </span>
         <h1 className="state-title" id="access-denied-title">
-          Access denied
+          {t('Access denied')}
         </h1>
         <p className="state-text">
           {role
-            ? `The ${roleLabel(role)} role does not include this page.`
-            : 'This account has no application role yet. An administrator has to assign one in Keycloak.'}
+            ? t('The {role} role does not include this page.', {
+                role: t(roleLabel(role)),
+              })
+            : t(
+                'This account has no application role yet. An administrator has to assign one in Keycloak.',
+              )}
         </p>
         <div className="state-actions">
           {can('read') ? (
             <Link className="button" to="/dashboard">
-              Back to dashboard
+              {t('Back to dashboard')}
             </Link>
           ) : (
             <button type="button" className="button" onClick={logout}>
-              Log out
+              {t('Log out')}
             </button>
           )}
         </div>

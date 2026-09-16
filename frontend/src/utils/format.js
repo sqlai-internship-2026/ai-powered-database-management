@@ -1,64 +1,109 @@
 // Shared display helpers. The database stores plain numbers and ISO dates;
 // formatting stays in the frontend.
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'TRY',
-  maximumFractionDigits: 0,
-})
+//
+// Everything here follows the chosen language: "1,250,000 TRY" in English is
+// "₺1.250.000" in Turkish, and "12 Mar 2026" is "12 Mar 2026" in both but
+// built from a different list of month names. The language is read from the
+// i18n module on every call rather than captured once, because a formatter
+// created at import time would keep the language the page happened to open in.
+import { currentLanguage, currentLocale, translateNow } from '../i18n'
 
-const numberFormatter = new Intl.NumberFormat('en-US')
+// One set of Intl formatters per locale, built the first time that locale is
+// asked for. Intl.NumberFormat is expensive enough that building one per call
+// would show on a table of several hundred figures.
+const cache = new Map()
 
-const decimalFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
+function formatters() {
+  const locale = currentLocale()
+  let entry = cache.get(locale)
+  if (!entry) {
+    entry = {
+      currency: new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: 'TRY',
+        maximumFractionDigits: 0,
+      }),
+      number: new Intl.NumberFormat(locale),
+      decimal: new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+    }
+    cache.set(locale, entry)
+  }
+  return entry
+}
+
+// What a shortened amount is called. English writes the unit after the figure
+// and the currency after that; Turkish uses the same order with its own
+// abbreviations, so both read as "<figure> <unit> <currency>".
+const COMPACT_UNITS = {
+  en: { billion: 'B TRY', million: 'M TRY', thousand: 'K TRY' },
+  tr: { billion: 'Mr TL', million: 'Mn TL', thousand: 'B TL' },
+}
+
+function compactUnit(size) {
+  return (COMPACT_UNITS[currentLanguage()] || COMPACT_UNITS.en)[size]
+}
 
 export function formatCurrency(amount) {
   if (amount === null || amount === undefined) return '-'
-  return currencyFormatter.format(amount)
+  return formatters().currency.format(amount)
 }
 
 // Budgets run from tens of thousands to hundreds of millions, so the unit is
 // chosen per value instead of forcing everything into millions.
 export function formatCompactCurrency(amount) {
   if (amount === null || amount === undefined) return '-'
+  const { number, decimal } = formatters()
   const absolute = Math.abs(amount)
   if (absolute >= 1_000_000_000) {
-    return `${decimalFormatter.format(amount / 1_000_000_000)}B TRY`
+    return `${decimal.format(amount / 1_000_000_000)} ${compactUnit('billion')}`
   }
   if (absolute >= 1_000_000) {
     const millions = amount / 1_000_000
     const text =
       absolute >= 100_000_000
-        ? numberFormatter.format(Math.round(millions))
-        : decimalFormatter.format(millions)
-    return `${text}M TRY`
+        ? number.format(Math.round(millions))
+        : decimal.format(millions)
+    return `${text} ${compactUnit('million')}`
   }
   if (absolute >= 1_000) {
-    return `${numberFormatter.format(Math.round(amount / 1_000))}K TRY`
+    return `${number.format(Math.round(amount / 1_000))} ${compactUnit('thousand')}`
   }
   return formatCurrency(amount)
 }
 
 export function formatNumber(value) {
   if (value === null || value === undefined) return '-'
-  return numberFormatter.format(value)
+  return formatters().number.format(value)
 }
 
 export function formatPercent(value, fractionDigits = 1) {
   if (value === null || value === undefined) return '-'
+  const { number, decimal } = formatters()
   const text =
-    fractionDigits === 0
-      ? numberFormatter.format(Math.round(value))
-      : decimalFormatter.format(value)
+    fractionDigits === 0 ? number.format(Math.round(value)) : decimal.format(value)
   return `${text}%`
+}
+
+// A figure with the unit it is counted in: "24 days", "24 gün". Turkish takes
+// no plural suffix after a number, so the plural form is only ever reached in
+// English.
+export function formatCount(value, one, many) {
+  const word = currentLanguage() === 'tr' ? one : value === 1 ? one : many || `${one}s`
+  return `${formatNumber(value)} ${translateNow(word)}`
 }
 
 // Negative values mean the end date is already behind us.
 export function formatMonths(value) {
   if (value === null || value === undefined) return '-'
-  if (value < 0) return `${numberFormatter.format(Math.abs(value))} mo overdue`
-  return `${numberFormatter.format(value)} mo`
+  if (value < 0) {
+    return translateNow('{count} mo overdue', {
+      count: formatNumber(Math.abs(value)),
+    })
+  }
+  return translateNow('{count} mo', { count: formatNumber(value) })
 }
 
 // What a result says about its own size, for the line under an answer.
@@ -70,10 +115,21 @@ export function formatMonths(value) {
 // wide query timing out is the usual reason - saying so is better than a
 // number nobody checked.
 export function describeRowCount({ rowCount, truncated, totalRows }) {
-  const rows = `${formatNumber(rowCount)} ${rowCount === 1 ? 'row' : 'rows'}`
+  const rows =
+    currentLanguage() === 'tr' || rowCount !== 1
+      ? translateNow('{count} rows', { count: formatNumber(rowCount) })
+      : translateNow('{count} row', { count: formatNumber(rowCount) })
   if (!truncated) return rows
-  if (totalRows) return `first ${formatNumber(rowCount)} of ${formatNumber(totalRows)} rows`
-  return `${rows} - cut off at the row limit, so the answer may be incomplete`
+  if (totalRows) {
+    return translateNow('first {count} of {total} rows', {
+      count: formatNumber(rowCount),
+      total: formatNumber(totalRows),
+    })
+  }
+  return translateNow(
+    '{rows} - cut off at the row limit, so the answer may be incomplete',
+    { rows },
+  )
 }
 
 export function formatDate(isoDate) {
@@ -85,27 +141,21 @@ export function formatDate(isoDate) {
 // "2026-03-12". Parsed by hand instead of through Date(), because
 // new Date('2026-03-12') is read as midnight UTC and comes back as the
 // eleventh for anyone west of Greenwich.
-const monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-]
+const MONTH_NAMES = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  tr: ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'],
+}
+
+function monthNames() {
+  return MONTH_NAMES[currentLanguage()] || MONTH_NAMES.en
+}
 
 export function formatDay(isoDate) {
   if (!isoDate) return '-'
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate))
   if (!match) return String(isoDate)
   const [, year, month, day] = match
-  const name = monthNames[Number(month) - 1]
+  const name = monthNames()[Number(month) - 1]
   if (!name) return String(isoDate)
   return `${Number(day)} ${name} ${year}`
 }
@@ -149,14 +199,15 @@ export function formatDateTime(isoValue) {
   const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(text)
   if (!match) return text
 
+  const names = monthNames()
   const [, year, month, day, hour, minute] = match
-  const name = monthNames[Number(month) - 1]
+  const name = names[Number(month) - 1]
   if (!name) return text
 
   if (/(Z|[+-]\d{2}:?\d{2})$/.test(text)) {
     const parsed = new Date(text)
     if (!Number.isNaN(parsed.getTime())) {
-      const local = monthNames[parsed.getMonth()]
+      const local = names[parsed.getMonth()]
       const hours = String(parsed.getHours()).padStart(2, '0')
       const minutes = String(parsed.getMinutes()).padStart(2, '0')
       return `${parsed.getDate()} ${local} ${parsed.getFullYear()}, ${hours}:${minutes}`

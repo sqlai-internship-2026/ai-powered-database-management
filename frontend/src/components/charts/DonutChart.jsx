@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../../i18n'
 
 // Shares of a total, for the questions that ask how something divides rather
 // than which one is biggest. The backend only offers this shape when the
@@ -22,12 +23,17 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 export default function DonutChart({
   data,
   formatValue = (value) => value,
-  emptyMessage = 'Nothing to chart for this selection.',
+  emptyMessage,
 }) {
+  const t = useT()
   const [hovered, setHovered] = useState(null)
 
   if (!data || data.length === 0) {
-    return <p className="chart-empty">{emptyMessage}</p>
+    return (
+      <p className="chart-empty">
+        {emptyMessage || t('Nothing to chart for this selection.')}
+      </p>
+    )
   }
 
   const slices = data.slice(0, MAX_SLICES)
@@ -57,7 +63,7 @@ export default function DonutChart({
   return (
     <div className="donut-chart">
       <div className="donut-ring">
-        <svg viewBox="0 0 160 160" role="img" aria-label="Share of the total">
+        <svg viewBox="0 0 160 160" role="img" aria-label={t('Share of the total')}>
           {drawn.map((slice) => (
             <circle
               key={slice.label}
@@ -84,7 +90,7 @@ export default function DonutChart({
             {formatValue(active ? active.value : total)}
           </span>
           <span className="donut-centre-label">
-            {active ? active.label : 'Total'}
+            {active ? active.label : t('Total')}
           </span>
         </div>
       </div>
