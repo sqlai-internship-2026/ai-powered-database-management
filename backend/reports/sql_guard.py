@@ -60,25 +60,46 @@ class UnsafeQuery(ValueError):
     """Generated SQL was rejected. The message is meant to be shown to a user."""
 
 
-def _without_noise(sql: str) -> str:
-    """The query with comments removed and string literal contents blanked.
+def _scan(sql: str):
+    """The query to run, and a mask of it for the checks below.
 
-    Every check below runs against this copy, never the original. A semicolon
-    inside a string is data; a semicolon inside a comment is invisible to the
-    server but would fool a naive scan of the raw text. Blanking rather than
-    deleting keeps offsets close enough for readable errors.
+    Two strings come out of one pass, and they are the same length:
+
+      * the first is the query with its comments removed - the text that will
+        actually run;
+      * the second is that same text with the inside of every quoted section
+        blanked, which is what every check in this module reads.
+
+    Both drop exactly the same comments, and blanking replaces what is inside a
+    quoted section in place, so an index found in the mask names the same
+    character in the text that runs. That identity is the whole point of
+    returning two strings instead of one. Checking one text and running another
+    is how a semicolon once survived the single-statement check below: it sat
+    behind a trailing comment, where only the raw text still carried it.
+
+    A comment becomes one space rather than nothing, so removing it cannot weld
+    the tokens on either side of it into a single word.
+
+    Quoted sections are blanked rather than read, because both kinds are data to
+    this module: a semicolon inside a string is a value, and a column named
+    "delete" is a name. The quotes themselves stay in the mask, so a query that
+    opens with one is still seen to start with something other than SELECT.
     """
-    out = []
+    runnable = []
+    mask = []
     i = 0
     length = len(sql)
 
     while i < length:
         char = sql[i]
 
-        # Line comment: -- to end of line
+        # Line comment: -- to end of line. The newline itself is left to the
+        # last branch, so the line structure of the query survives.
         if char == "-" and sql[i + 1 : i + 2] == "-":
             while i < length and sql[i] != "\n":
                 i += 1
+            runnable.append(" ")
+            mask.append(" ")
             continue
 
         # Block comment: /* ... */ (Postgres allows nesting)
@@ -94,45 +115,45 @@ def _without_noise(sql: str) -> str:
                     i += 2
                 else:
                     i += 1
-            out.append(" ")
+            runnable.append(" ")
+            mask.append(" ")
             continue
 
-        # Single-quoted literal; '' is an escaped quote inside one
-        if char == "'":
-            out.append("''")
+        # A string literal or a quoted identifier. Both open on a quote and
+        # close on the next one, and '' is an escaped quote inside a literal.
+        # An unterminated one runs to the end of the text and is blanked just
+        # the same, so the two outputs stay the same length either way.
+        if char in "'\"":
+            start = i
+            closed = False
             i += 1
             while i < length:
-                if sql[i] == "'":
-                    if sql[i + 1 : i + 2] == "'":
+                if sql[i] == char:
+                    if char == "'" and sql[i + 1 : i + 2] == "'":
                         i += 2
                         continue
                     i += 1
+                    closed = True
                     break
                 i += 1
+            quoted = sql[start:i]
+            inside = len(quoted) - (2 if closed else 1)
+            runnable.append(quoted)
+            mask.append(char + " " * inside + (char if closed else ""))
             continue
 
-        # Double-quoted identifier: kept, it names a real column
-        if char == '"':
-            out.append(char)
-            i += 1
-            while i < length and sql[i] != '"':
-                out.append(sql[i])
-                i += 1
-            out.append('"')
-            i += 1
-            continue
-
-        out.append(char)
+        runnable.append(char)
+        mask.append(char)
         i += 1
 
-    return "".join(out)
+    return "".join(runnable), "".join(mask)
 
 
 def validate_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS) -> str:
     """Returns the query to run, or raises UnsafeQuery explaining the refusal.
 
-    The returned string is the caller's SQL with any trailing semicolon removed
-    and a LIMIT appended when it had none.
+    The returned string is the caller's SQL with its comments and any trailing
+    semicolon removed, and a LIMIT appended when it had none.
     """
     return checked_select(sql, max_rows)[0]
 
@@ -148,34 +169,50 @@ def checked_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS):
     When the caller's own SQL already carried a LIMIT the two are identical:
     that limit was asked for, and counting past it would answer a question
     nobody posed.
+
+    Both are cut out of the same text the checks below read, at the same
+    indexes. Nothing that was not checked can reach the server that way, which
+    is the property the closing check states out loud.
     """
     if not sql or not sql.strip():
         raise UnsafeQuery("The model returned an empty query.")
 
-    code = _without_noise(sql).strip()
+    runnable, mask = _scan(sql)
 
     # Dollar quoting ($$ ... $$) can hold a whole function body and has no
     # place in a generated SELECT. Refuse rather than try to parse it.
-    if re.search(r"\$[A-Za-z_]*\$", code):
+    if re.search(r"\$[A-Za-z_]*\$", mask):
         raise UnsafeQuery("Dollar-quoted strings are not allowed in a report query.")
 
-    # One statement only. A single trailing semicolon is the normal way to end
-    # a query, so it is dropped before looking for any others.
-    code = code.rstrip().rstrip(";").rstrip()
-    if ";" in code:
+    # Where the statement really ends. The mask carries no comments, so a single
+    # trailing semicolon - the normal way to end a query - is the last thing in
+    # it when there is one, however much the model wrote after it. Both strings
+    # are then cut at the same indexes, which is what keeps the text that was
+    # checked and the text that will run one text.
+    end = len(mask.rstrip())
+    if mask[:end].endswith(";"):
+        end = len(mask[: end - 1].rstrip())
+    start = len(mask) - len(mask.lstrip())
+    mask, statement = mask[start:end], runnable[start:end]
+
+    if not statement:
+        raise UnsafeQuery("The query is empty once its comments are removed.")
+
+    # One statement only. Any semicolon left inside the cut is a second one.
+    if ";" in mask:
         raise UnsafeQuery(
             "The query contains more than one statement. Only a single SELECT "
             "can be run."
         )
 
-    if not re.match(r"^\s*(select|with)\b", code, re.IGNORECASE):
-        first = re.match(r"^\s*([A-Za-z_]+)", code)
+    if not re.match(r"^\s*(select|with)\b", mask, re.IGNORECASE):
+        first = re.match(r"^\s*([A-Za-z_]+)", mask)
         word = first.group(1).upper() if first else "?"
         raise UnsafeQuery(
             f"The query starts with {word}, not SELECT. Only reads are allowed."
         )
 
-    lowered = code.lower()
+    lowered = mask.lower()
     for keyword in FORBIDDEN:
         if re.search(rf"\b{re.escape(keyword)}\b", lowered):
             raise UnsafeQuery(
@@ -187,8 +224,16 @@ def checked_select(sql: str, max_rows: int = DEFAULT_MAX_ROWS):
     # deliberate simplification: proving which LIMIT is the outer one needs a
     # real parser, and the row cap is a comfort feature - the statement_timeout
     # on the read-only role is what actually protects the server.
-    original = sql.strip().rstrip(";").rstrip()
-    if not re.search(r"\blimit\b", lowered):
-        return f"{original}\nLIMIT {max_rows}", original
+    if re.search(r"\blimit\b", lowered):
+        to_run = statement
+    else:
+        to_run = f"{statement}\nLIMIT {max_rows}"
 
-    return original, original
+    # Said out loud rather than assumed. Everything above already makes it true;
+    # stating it here means a later change to the scan or to the cut cannot
+    # quietly hand the server a second statement, which is precisely what went
+    # wrong while the checks read one text and the server was given another.
+    if ";" in _scan(to_run)[1]:
+        raise UnsafeQuery("The query could not be reduced to a single statement.")
+
+    return to_run, statement
