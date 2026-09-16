@@ -717,6 +717,10 @@ stored in the repository. Create a test user after the first start:
    - Click **Create**.
 4. Open the **Credentials** tab -> **Set password**.
    - Choose any password, set **Temporary** to **Off**, then **Save**.
+5. Open the **Role mapping** tab -> **Assign role**, switch the filter to realm
+   roles and give the account one of `ADMIN`, `DBA`, `ANALYST` or `VIEWER`.
+   Without one the account signs in but every data request answers `403` - see
+   [Roles and permissions](#roles-and-permissions).
 
 ## Log in
 
@@ -778,10 +782,22 @@ of the access token and applies them.
 | Schema Audit | `/api/schema-audit`, `/api/schema-audit/rules` | No | No | Yes | Yes |
 | Schema Audit explanations | `/api/schema-audit/explain` | No | No | Yes | Yes |
 
-- The four roles are not part of `identity/keycloak/sql-ai-realm.json`. Create
-  them once under **Realm roles**, then assign one to every account. Names are
+- The realm export carries the four roles, so a fresh import creates them. On a
+  realm imported before they existed, add them once under **Realm roles** -
+  re-importing would take the accounts with it. Either way, assigning a role to
+  an account is a manual step; no account gets one automatically. Names are
   matched regardless of case. An account holding several gets everything they
   allow, and the sidebar shows the highest.
+- With `kcadm` instead of the console, from the Keycloak `bin` folder:
+
+  ```powershell
+  .\kcadm.bat config credentials --server http://localhost:8080 --realm master --user admin
+  .\kcadm.bat create roles -r sql-ai -s name=ANALYST
+  .\kcadm.bat add-roles -r sql-ai --uusername testuser --rolename ANALYST
+  ```
+
+- A role reaches the application through a new token, so sign out and back in
+  after assigning one.
 - An account with none of the four roles is allowed nothing: every data
   endpoint answers `403` and the screens say that a role has to be assigned.
   That includes accounts created before these roles existed.

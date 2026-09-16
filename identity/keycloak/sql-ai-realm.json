@@ -56,6 +56,22 @@
       {
         "name": "app_user",
         "description": "Default application user role for the SQL-AI frontend."
+      },
+      {
+        "name": "ADMIN",
+        "description": "Everything, including Schema Audit and its explanations."
+      },
+      {
+        "name": "DBA",
+        "description": "Schema Audit, the assistant and dynamic reports, plus everything a viewer sees."
+      },
+      {
+        "name": "ANALYST",
+        "description": "The assistant and dynamic reports, plus everything a viewer sees."
+      },
+      {
+        "name": "VIEWER",
+        "description": "Read-only: dashboard, lists, project detail and the fixed reports."
       }
     ]
   },
