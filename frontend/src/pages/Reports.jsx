@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../auth/AuthProvider'
 import PageHeader from '../components/PageHeader'
 import { CloseIcon, PrinterIcon, SparkIcon } from '../components/icons'
 import { useApiData } from '../utils/api'
@@ -14,7 +15,8 @@ const tabs = [
   // does not apply to it. The route keeps its original /ask path: it is what
   // the tab still does first, and renaming a route only breaks the links
   // people have already kept.
-  { to: '/reports/ask', label: 'Dynamic', uses: [] },
+  // The only tab a role can lack: it sends questions to the model.
+  { to: '/reports/ask', label: 'Dynamic', uses: [], permission: 'ai' },
 ]
 
 const emptyFilters = {
@@ -26,7 +28,13 @@ const emptyFilters = {
 
 export default function Reports() {
   const { pathname } = useLocation()
+  const { can } = useAuth()
   const { data: options, error: optionsError } = useApiData('/api/reports/filters')
+
+  // A tab the role cannot open is not offered. The active tab is still matched
+  // against every tab, so a typed /reports/ask shows its own refusal under the
+  // right heading instead of borrowing the Financial filters.
+  const visibleTabs = tabs.filter((tab) => !tab.permission || can(tab.permission))
   const [filters, setFilters] = useState(emptyFilters)
 
   // Longest matching tab wins, so /reports/workforce does not match /reports.
@@ -117,7 +125,7 @@ export default function Reports() {
 
       <nav className="report-tabs" aria-label="Report sections">
         <div className="report-tabs-track">
-          {tabs.map((tab) => (
+          {visibleTabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}

@@ -578,6 +578,8 @@ summary:focus-visible,
   font-size: 11px;
   color: var(--sidebar-text-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-action {
@@ -758,7 +760,13 @@ summary:focus-visible,
   flex-shrink: 0;
 }
 
+/* A long display name is cut with an ellipsis rather than pushing the theme
+   switch and the avatar off the bar. */
 .topbar-username {
+  min-width: 0;
+  max-width: 36ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12.5px;
   color: var(--color-text-muted);
   white-space: nowrap;
@@ -2396,14 +2404,6 @@ tbody tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.remediation-heading {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--color-text-muted);
-  font-weight: 600;
 }
 
 .remediation-head {

@@ -3,7 +3,9 @@
 The browser signs in against Keycloak and the frontend sends the resulting
 access token as a bearer header. This module is what makes that token mean
 something: every endpoint that reads a row depends on require_user, so an
-unauthenticated request is answered before any query runs.
+unauthenticated request is answered before any query runs, and on
+require_permission, which checks the caller's role against the matrix at the
+end of this module before the endpoint does anything.
 
 Validation is offline. The token is checked against the realm's signing keys,
 which PyJWT fetches from the realm JWKS endpoint and caches, so a request costs
@@ -144,3 +146,98 @@ def require_user(
     except TokenRejected as exc:
         # Authenticated, but not allowed - a new token would say the same.
         raise HTTPException(status_code=403, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Roles
+#
+# Who may do what is decided here, once, and every route names the permission
+# it needs through the router it hangs off (see main.py). Roles are Keycloak
+# realm roles, assigned in Keycloak and read from the same realm_access claim
+# check_claims reads, so nothing about them is stored in this application.
+#
+# The token is still decoded once per request. require_permission depends on
+# require_user, and FastAPI resolves a dependency named twice in one request
+# only once.
+#
+# frontend/src/auth/permissions.js holds a copy of this matrix so the screens
+# can hide what a role cannot use. That copy is a courtesy to the reader; this
+# one is the control.
+# ---------------------------------------------------------------------------
+
+# Most privileged first, so the first one an account holds is its effective role.
+APP_ROLES = ("ADMIN", "DBA", "ANALYST", "VIEWER")
+
+READ = "read"
+AI = "ai"
+SCHEMA_AUDIT = "schema_audit"
+SCHEMA_AUDIT_EXPLAIN = "schema_audit_explain"
+
+PERMISSIONS = {
+    # Dashboard, the lists, project detail and the fixed reports.
+    READ: frozenset({"VIEWER", "ANALYST", "DBA", "ADMIN"}),
+    # The Assistant and dynamic reports: questions sent to a model, and the
+    # generated SQL run again from a saved report.
+    AI: frozenset({"ANALYST", "DBA", "ADMIN"}),
+    # The structural review of the live schema.
+    SCHEMA_AUDIT: frozenset({"DBA", "ADMIN"}),
+    # A finding explained by a model.
+    SCHEMA_AUDIT_EXPLAIN: frozenset({"DBA", "ADMIN"}),
+}
+
+
+def app_roles(roles):
+    """The application roles among a token's realm roles, most privileged first.
+
+    Keycloak compares role names exactly, so "Admin" and "ADMIN" would be two
+    roles there. Here they are one, because a capitalisation slip in the admin
+    console should not lock somebody out. Anything that is not one of the four
+    application roles - app_user, offline_access, a typo, a value that is not
+    even a string - grants nothing.
+    """
+    names = {role.strip().upper() for role in roles or [] if isinstance(role, str)}
+    return [role for role in APP_ROLES if role in names]
+
+
+def effective_role(roles):
+    """The most privileged application role, or None for an account with none."""
+    found = app_roles(roles)
+    return found[0] if found else None
+
+
+def _either(roles):
+    ordered = [role for role in reversed(APP_ROLES) if role in roles]
+    if len(ordered) == 1:
+        return ordered[0]
+    return ", ".join(ordered[:-1]) + f" or {ordered[-1]}"
+
+
+def require_permission(permission):
+    """A dependency that lets a request through only for a role holding permission.
+
+    An unknown permission name fails when the router is built, not when the
+    first request arrives, so a typo cannot quietly leave a route open or shut.
+    """
+    allowed = PERMISSIONS[permission]
+
+    def check(user: dict = Depends(require_user)):
+        if allowed.intersection(app_roles(user.get("roles"))):
+            return user
+
+        role = effective_role(user.get("roles"))
+        if role is None:
+            detail = (
+                "This account has no application role. An administrator has to "
+                f"assign one of {_either(APP_ROLES)} in Keycloak."
+            )
+        else:
+            detail = f"The {role} role does not include this. It needs {_either(allowed)}."
+        # 403, not 401: the token is valid, and signing in again would change
+        # nothing - a different role would.
+        raise HTTPException(status_code=403, detail=detail)
+
+    # Read by the route-table tests, so every route's permission can be checked
+    # against the matrix without sending a request.
+    check.permission = permission
+    check.__name__ = f"require_{permission}"
+    return check

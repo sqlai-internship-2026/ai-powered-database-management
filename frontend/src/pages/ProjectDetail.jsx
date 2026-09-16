@@ -446,7 +446,7 @@ function Overview({ data, onSection }) {
   }
 
   return (
-    <div className="detail-overview">
+    <div>
       {project.description ? (
         <section className="detail-section">
           <h3 className="detail-section-title">About</h3>

@@ -565,7 +565,7 @@ reading - ambiguity in a question shows up as a false failure in the report.
 .venv\Scripts\python.exe -m pytest backend -q
 ```
 
-200 tests, no database, no model and no Keycloak. The SQL guard, the extraction
+221 tests, no database, no model and no Keycloak. The SQL guard, the extraction
 of SQL from a model reply, the chart rules, the token claim rules and the block
 an audit finding is rendered into are pure functions, which is why they were
 written that way. The summarising step and the finding explanation are tested
@@ -725,8 +725,8 @@ stored in the repository. Create a test user after the first start:
    Keycloak login page of the `sql-ai` realm.
 3. Sign in with the test user.
 4. Keycloak redirects back to the frontend and the Dashboard is shown.
-5. The signed-in username appears in the top bar, next to the **Log out**
-   button.
+5. The signed-in name appears in the top bar. The account's role and the
+   **Log out** button are at the foot of the sidebar.
 
 Every route is protected and cannot be opened without an active Keycloak
 session: `/dashboard`, `/projects`, `/employees`, `/departments`, `/products`,
@@ -763,6 +763,39 @@ token would fail the same way, so blaming the token there would be misleading.
 Configuration lives in `.env` (`KEYCLOAK_URL`, `KEYCLOAK_REALM`,
 `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_REQUIRED_ROLE`) and has to match the `VITE_`
 values the frontend uses.
+
+### Roles and permissions
+
+Roles are Keycloak realm roles, assigned to each account in the Keycloak admin
+console under **Users** -> the account -> **Role mapping**. The application has
+no screen for managing them: it reads them from the `realm_access.roles` claim
+of the access token and applies them.
+
+| Area | Endpoints | VIEWER | ANALYST | DBA | ADMIN |
+| --- | --- | :---: | :---: | :---: | :---: |
+| Dashboard, lists, project detail, fixed reports | `/api/dashboard`, `/api/departments`, `/api/employees`, `/api/projects`, `/api/projects/{id}`, `/api/products`, `/api/investments`, `/api/reports/filters`, `/api/reports/financial`, `/api/reports/workforce`, `/api/reports/portfolio` | Yes | Yes | Yes | Yes |
+| Assistant and dynamic reports | `/api/reports/ask/examples`, `/api/reports/ask`, `/api/reports/run` | No | Yes | Yes | Yes |
+| Schema Audit | `/api/schema-audit`, `/api/schema-audit/rules` | No | No | Yes | Yes |
+| Schema Audit explanations | `/api/schema-audit/explain` | No | No | Yes | Yes |
+
+- The four roles are not part of `identity/keycloak/sql-ai-realm.json`. Create
+  them once under **Realm roles**, then assign one to every account. Names are
+  matched regardless of case. An account holding several gets everything they
+  allow, and the sidebar shows the highest.
+- An account with none of the four roles is allowed nothing: every data
+  endpoint answers `403` and the screens say that a role has to be assigned.
+  That includes accounts created before these roles existed.
+- `401` means the request did not prove who is calling - no token, or an
+  expired or invalid one - and signing in again fixes it. `403` means the token
+  is valid but the account is not allowed that endpoint, so signing in again
+  changes nothing; a role has to change instead.
+- The frontend hides the Assistant, the Dynamic tab and Schema Audit from roles
+  that cannot use them, and shows **Access denied** on an address typed by
+  hand. That is only for the reader's sake. The backend checks the role on
+  every request, so calling the API directly gets the same answer.
+- The matrix is defined in `backend/auth.py` (`PERMISSIONS`) and mirrored in
+  `frontend/src/auth/permissions.js`. A change belongs in both, and the route
+  tests in `backend/test_auth.py` fail if a new `/api` route is not classified.
 
 ## Not implemented yet
 
