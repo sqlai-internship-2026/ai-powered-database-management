@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import keycloak from '../keycloak'
+import { appRoles, effectiveRole, hasPermission } from './permissions'
 
 const AuthContext = createContext(null)
 
@@ -46,10 +47,18 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Read from the token on every render, so a refreshed token that carries a
+  // changed role is reflected without a reload. Before sign-in there is no
+  // token, and no roles means no permissions.
+  const roles = appRoles(keycloak.tokenParsed?.realm_access?.roles)
+
   const value = {
     status,
     error,
     authenticated: status === 'authenticated',
+    roles,
+    role: effectiveRole(roles),
+    can: (permission) => hasPermission(roles, permission),
     username:
       keycloak.tokenParsed?.preferred_username ||
       keycloak.tokenParsed?.name ||

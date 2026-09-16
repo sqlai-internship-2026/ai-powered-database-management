@@ -54,8 +54,24 @@ async function authHeaders() {
   return { Authorization: `Bearer ${keycloak.token}` }
 }
 
+// fetch rejects only when no response arrived at all: the backend is not
+// running, or the network is down. Said in words here, because the browser's
+// own "Failed to fetch" reads like a fault in the page rather than a server
+// that is not there. Status 0 keeps it apart from every answer the API gives.
+async function send(url, init) {
+  try {
+    return await fetch(url, init)
+  } catch {
+    const error = new Error(
+      'Could not reach the server. Check that the backend is running, then try again.',
+    )
+    error.status = 0
+    throw error
+  }
+}
+
 export async function apiGet(path) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await send(`${API_URL}${path}`, {
     headers: await authHeaders(),
   })
 
@@ -66,7 +82,11 @@ export async function apiGet(path) {
     } catch {
       // Error responses are not always JSON; the status text is enough then.
     }
-    throw new Error(detail)
+    // The status travels with the sentence, so a screen can tell "there is no
+    // such record" (404) apart from a backend that could not answer.
+    const error = new Error(detail)
+    error.status = response.status
+    throw error
   }
 
   return response.json()
@@ -78,7 +98,7 @@ export async function apiGet(path) {
 // long or too punctuated to sit comfortably in a query string, not because any
 // of them changes anything.
 export async function apiPost(path, body) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await send(`${API_URL}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -94,7 +114,9 @@ export async function apiPost(path, body) {
     } catch {
       // Same as above: a non-JSON error still has to reach the caller.
     }
-    throw new Error(detail)
+    const error = new Error(detail)
+    error.status = response.status
+    throw error
   }
 
   return response.json()

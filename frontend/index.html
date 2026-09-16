@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Applies a saved dark theme before the stylesheet and the app load, so a
+         reader who chose dark never opens on a white page. Mirrors
+         src/utils/theme.js; without storage the page stays light. -->
+    <script>
+      try {
+        if (localStorage.getItem('sqlai.theme') === 'dark') {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      } catch (error) {
+        // Storage is unavailable: keep the default light theme.
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SQL-AI Management System</title>
   </head>

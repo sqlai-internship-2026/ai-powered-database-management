@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { roleLabel } from '../auth/permissions'
 import { initials } from '../utils/format'
 import {
   ChevronLeftIcon,
@@ -22,26 +23,29 @@ import {
 // Grouped rather than listed flat: the three headings say what kind of screen
 // is under them, which is what lets somebody looking for Investments skip the
 // analysis entries without reading them.
+//
+// Each entry names the permission its page needs, and an entry the reader's
+// role cannot open is left out - as is a group with nothing left in it.
 const navigationGroups = [
   {
     label: 'Overview',
-    items: [{ to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon }],
+    items: [{ to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon, permission: 'read' }],
   },
   {
     label: 'Management data',
     items: [
-      { to: '/projects', label: 'Projects', Icon: ProjectsIcon },
-      { to: '/employees', label: 'Employees', Icon: EmployeesIcon },
-      { to: '/departments', label: 'Departments', Icon: DepartmentsIcon },
-      { to: '/products', label: 'Products', Icon: ProductsIcon },
-      { to: '/investments', label: 'Investments', Icon: InvestmentsIcon },
+      { to: '/projects', label: 'Projects', Icon: ProjectsIcon, permission: 'read' },
+      { to: '/employees', label: 'Employees', Icon: EmployeesIcon, permission: 'read' },
+      { to: '/departments', label: 'Departments', Icon: DepartmentsIcon, permission: 'read' },
+      { to: '/products', label: 'Products', Icon: ProductsIcon, permission: 'read' },
+      { to: '/investments', label: 'Investments', Icon: InvestmentsIcon, permission: 'read' },
     ],
   },
   {
     label: 'Analysis and AI',
     items: [
-      { to: '/reports', label: 'Reports', Icon: ReportsIcon },
-      { to: '/schema-audit', label: 'Schema Audit', Icon: SchemaIcon },
+      { to: '/reports', label: 'Reports', Icon: ReportsIcon, permission: 'read' },
+      { to: '/schema-audit', label: 'Schema Audit', Icon: SchemaIcon, permission: 'schema_audit' },
     ],
   },
 ]
@@ -58,8 +62,14 @@ export default function Sidebar({
   onCloseDrawer,
   closeButtonRef,
 }) {
-  const { username, fullName, logout } = useAuth()
+  const { username, fullName, logout, role, can } = useAuth()
   const displayName = fullName || username
+  const visibleGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => can(item.permission)),
+    }))
+    .filter((group) => group.items.length > 0)
 
   return (
     <aside
@@ -88,7 +98,7 @@ export default function Sidebar({
       </div>
 
       <div className="sidebar-scroll">
-        {navigationGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div className="sidebar-group" key={group.label}>
             <div className="sidebar-group-label" aria-hidden={collapsed}>
               {group.label}
@@ -126,7 +136,9 @@ export default function Sidebar({
             <div className="sidebar-user-name" title={displayName}>
               {displayName}
             </div>
-            <div className="sidebar-user-role">Signed in</div>
+            <div className="sidebar-user-role" title={roleLabel(role)}>
+              {roleLabel(role)}
+            </div>
           </div>
         </div>
 

@@ -3,8 +3,8 @@
 Nothing here writes: every endpoint reads, and each POST carries a question, a
 saved query or the identity of an audit finding in its body rather than a
 change. Reading still takes a signed-in account - every route below sits on a
-router that validates the Keycloak access token first (see auth.py), with
-/api/health as the one deliberate exception.
+router that validates the Keycloak access token and the caller's role first
+(see auth.py), with /api/health as the one deliberate exception.
 
 Numeric and date columns are cast in SQL so the JSON payload matches what the
 frontend already expects: plain numbers and ISO (YYYY-MM-DD) date strings.
@@ -18,8 +18,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from auth import require_user
+from auth import (
+    AI,
+    READ,
+    SCHEMA_AUDIT,
+    SCHEMA_AUDIT_EXPLAIN,
+    require_permission,
+    require_user,
+)
 from db import fetch_all, fetch_one
+from project_detail import read_project
 from reports import (
     filter_options,
     financial_report,
@@ -54,11 +62,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Everything that reads a row hangs off this router, so the token check is
-# declared once instead of on fourteen endpoints. /api/health stays on the app
-# itself: it answers whether the service and the database are up, which is the
-# first thing to check when signing in is what is failing.
-api = APIRouter(dependencies=[Depends(require_user)])
+# Every endpoint that reads a row hangs off one of these routers, and each
+# router names the permission its routes need (PERMISSIONS in auth.py), so an
+# endpoint cannot be added without saying who may call it. The token check is
+# listed as well: the permission check depends on it, and FastAPI resolves a
+# dependency once per request however often it is named, so the token is
+# still decoded once. /api/health stays on the app itself: it answers whether
+# the service and the database are up, which is the first thing to check when
+# signing in is what is failing.
+def _guarded(permission):
+    return APIRouter(
+        dependencies=[Depends(require_user), Depends(require_permission(permission))]
+    )
+
+
+read_api = _guarded(READ)
+ai_api = _guarded(AI)
+audit_api = _guarded(SCHEMA_AUDIT)
+explain_api = _guarded(SCHEMA_AUDIT_EXPLAIN)
 
 
 async def database_error(request, exc):
@@ -78,7 +99,7 @@ def health():
     return {"status": "ok", "database": "connected"}
 
 
-@api.get("/api/departments")
+@read_api.get("/api/departments")
 def list_departments():
     rows = fetch_all(
         """
@@ -95,7 +116,7 @@ def list_departments():
     return rows
 
 
-@api.get("/api/employees")
+@read_api.get("/api/employees")
 def list_employees():
     rows = fetch_all(
         """
@@ -116,7 +137,7 @@ def list_employees():
     return rows
 
 
-@api.get("/api/projects")
+@read_api.get("/api/projects")
 def list_projects():
     rows = fetch_all(
         """
@@ -134,7 +155,22 @@ def list_projects():
     return rows
 
 
-@api.get("/api/products")
+@read_api.get("/api/projects/{project_id}")
+def get_project(project_id: int):
+    """One project with its team, products, investments and budget position.
+
+    A 404 rather than an empty body for an id nobody has, so the screen can tell
+    "there is no such project" apart from a project with nothing recorded yet.
+    """
+    detail = read_project(project_id)
+    if detail is None:
+        raise HTTPException(
+            status_code=404, detail=f"There is no project with ID {project_id}."
+        )
+    return detail
+
+
+@read_api.get("/api/products")
 def list_products():
     rows = fetch_all(
         """
@@ -150,7 +186,7 @@ def list_products():
     return rows
 
 
-@api.get("/api/investments")
+@read_api.get("/api/investments")
 def list_investments():
     rows = fetch_all(
         """
@@ -168,7 +204,7 @@ def list_investments():
     return rows
 
 
-@api.get("/api/dashboard")
+@read_api.get("/api/dashboard")
 def dashboard():
     totals = fetch_one(
         """
@@ -196,13 +232,13 @@ def _status_list(status):
     return values or None
 
 
-@api.get("/api/reports/filters")
+@read_api.get("/api/reports/filters")
 def report_filters():
     """Statuses, the investment year range and departments, from live data."""
     return filter_options()
 
 
-@api.get("/api/reports/financial")
+@read_api.get("/api/reports/financial")
 def report_financial(
     year_from: int | None = None,
     year_to: int | None = None,
@@ -216,13 +252,13 @@ def report_financial(
     )
 
 
-@api.get("/api/reports/workforce")
+@read_api.get("/api/reports/workforce")
 def report_workforce(department_id: int | None = None):
     """Headcount, payroll and program allocation."""
     return workforce_report(department_id=department_id)
 
 
-@api.get("/api/reports/portfolio")
+@read_api.get("/api/reports/portfolio")
 def report_portfolio(status: str | None = None):
     """Schedule position and hardware consumption per program."""
     return portfolio_report(statuses=_status_list(status))
@@ -260,7 +296,7 @@ def _llm_failure(exc: client.LLMError) -> HTTPException:
     return HTTPException(status_code=503, detail=str(exc))
 
 
-@api.get("/api/schema-audit")
+@audit_api.get("/api/schema-audit")
 def schema_audit():
     """Structural review of the live schema, with suggested DDL per finding.
 
@@ -270,7 +306,7 @@ def schema_audit():
     return run_audit()
 
 
-@api.get("/api/schema-audit/rules")
+@audit_api.get("/api/schema-audit/rules")
 def schema_audit_rules():
     """The rule catalog, so the UI can explain what was checked."""
     return rule_catalog()
@@ -295,7 +331,7 @@ class ExplainFindingRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
 
 
-@api.post("/api/schema-audit/explain")
+@explain_api.post("/api/schema-audit/explain")
 def schema_audit_explain(request: ExplainFindingRequest):
     """Explains one finding in plain English and argues for one of its fixes.
 
@@ -358,7 +394,7 @@ class RunRequest(BaseModel):
     question: str = Field(default="", max_length=500)
 
 
-@api.get("/api/reports/ask/examples")
+@ai_api.get("/api/reports/ask/examples")
 def report_ask_examples():
     """Example questions to offer, and the model that will answer them.
 
@@ -418,13 +454,13 @@ def _answered(build):
         )
 
 
-@api.post("/api/reports/ask")
+@ai_api.post("/api/reports/ask")
 def report_ask(request: AskRequest):
     """Answers a typed question with the rows its generated SQL returns."""
     return _answered(lambda: answer_question(request.question))
 
 
-@api.post("/api/reports/run")
+@ai_api.post("/api/reports/run")
 def report_run(request: RunRequest):
     """Runs SQL a saved report card is holding, without asking a model again.
 
@@ -444,5 +480,6 @@ def report_run(request: RunRequest):
     return _answered(lambda: run_query(request.sql, request.question))
 
 
-# Registered last, so every route defined above is part of the router.
-app.include_router(api)
+# Registered last, so every route defined above is part of its router.
+for router in (read_api, ai_api, audit_api, explain_api):
+    app.include_router(router)

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/AuthProvider'
 import Assistant from '../components/Assistant'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
@@ -158,6 +159,12 @@ export default function Dashboard() {
         ? ' is-warning'
         : ' is-critical'
 
+  // The Assistant and the way into dynamic reports are for roles that may send
+  // questions to the model. The backend refuses the rest either way; this only
+  // keeps a control off the screen that could not work for them.
+  const { can } = useAuth()
+  const canAsk = can('ai')
+
   return (
     <>
       <PageHeader
@@ -165,10 +172,14 @@ export default function Dashboard() {
         title="Dashboard"
         description="The company at a glance, read live from the database: what is committed, what has been spent and what needs attention."
         actions={
-          <Link className="button button-primary" to="/reports/ask">
-            <SparkIcon size={16} />
-            Ask your data
-          </Link>
+          canAsk ? (
+            // Secondary: the Assistant's Ask further down is this page's one
+            // primary action.
+            <Link className="button" to="/reports/ask">
+              <SparkIcon size={16} />
+              Ask your data
+            </Link>
+          ) : null
         }
       />
 
@@ -402,7 +413,7 @@ export default function Dashboard() {
         />
       </section>
 
-      <Assistant />
+      {canAsk ? <Assistant /> : null}
     </>
   )
 }

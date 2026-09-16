@@ -337,9 +337,11 @@ export default function AskReport() {
               onChange={(event) => setQuestion(event.target.value)}
             />
           </label>
+          {/* Secondary, like every action on this page but Save: one primary
+              per screen, and saving the report is the one that matters. */}
           <button
             type="submit"
-            className="button button-primary"
+            className="button"
             disabled={asking || question.trim().length < 3}
           >
             <SparkIcon size={15} />
@@ -415,7 +417,7 @@ export default function AskReport() {
             actions={
               <button
                 type="button"
-                className="button button-primary"
+                className="button"
                 onClick={addPending}
               >
                 <PlusIcon size={15} />
