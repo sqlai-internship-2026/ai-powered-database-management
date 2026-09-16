@@ -166,7 +166,7 @@ def require_user(
 # ---------------------------------------------------------------------------
 
 # Most privileged first, so the first one an account holds is its effective role.
-APP_ROLES = ("ADMIN", "DBA", "ANALYST", "VIEWER")
+APP_ROLES = ("ADMIN", "ANALYST", "VIEWER")
 
 READ = "read"
 AI = "ai"
@@ -175,14 +175,14 @@ SCHEMA_AUDIT_EXPLAIN = "schema_audit_explain"
 
 PERMISSIONS = {
     # Dashboard, the lists, project detail and the fixed reports.
-    READ: frozenset({"VIEWER", "ANALYST", "DBA", "ADMIN"}),
+    READ: frozenset({"VIEWER", "ANALYST", "ADMIN"}),
     # The Assistant and dynamic reports: questions sent to a model, and the
     # generated SQL run again from a saved report.
-    AI: frozenset({"ANALYST", "DBA", "ADMIN"}),
+    AI: frozenset({"ANALYST", "ADMIN"}),
     # The structural review of the live schema.
-    SCHEMA_AUDIT: frozenset({"DBA", "ADMIN"}),
+    SCHEMA_AUDIT: frozenset({"ADMIN"}),
     # A finding explained by a model.
-    SCHEMA_AUDIT_EXPLAIN: frozenset({"DBA", "ADMIN"}),
+    SCHEMA_AUDIT_EXPLAIN: frozenset({"ADMIN"}),
 }
 
 
@@ -191,7 +191,7 @@ def app_roles(roles):
 
     Keycloak compares role names exactly, so "Admin" and "ADMIN" would be two
     roles there. Here they are one, because a capitalisation slip in the admin
-    console should not lock somebody out. Anything that is not one of the four
+    console should not lock somebody out. Anything that is not one of the three
     application roles - app_user, offline_access, a typo, a value that is not
     even a string - grants nothing.
     """

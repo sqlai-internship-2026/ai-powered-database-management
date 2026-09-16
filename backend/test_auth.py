@@ -130,7 +130,7 @@ def test_an_account_with_no_application_role_has_no_role():
 
 
 def test_the_effective_role_is_the_most_privileged_one_held():
-    assert effective_role(["viewer", "DBA"]) == "DBA"
+    assert effective_role(["viewer", "ANALYST"]) == "ANALYST"
     assert effective_role(["ANALYST", "admin"]) == "ADMIN"
 
 
@@ -159,7 +159,7 @@ def test_the_permission_check_refuses_a_signed_in_caller_with_403():
     assert raised.value.status_code == 403
     # Says which role the account has and which one it would need.
     assert "ANALYST" in raised.value.detail
-    assert "DBA or ADMIN" in raised.value.detail
+    assert "It needs ADMIN" in raised.value.detail
 
 
 def test_an_account_without_an_application_role_is_told_so():
@@ -222,7 +222,6 @@ ALL_ROUTES = READ_ROUTES | AI_ROUTES | AUDIT_ROUTES
 EXPECTED_ACCESS = {
     "VIEWER": READ_ROUTES,
     "ANALYST": READ_ROUTES | AI_ROUTES,
-    "DBA": READ_ROUTES | AI_ROUTES | AUDIT_ROUTES,
     "ADMIN": ALL_ROUTES,
     # Signed in with a valid token, but holding none of the four roles.
     None: set(),
@@ -450,13 +449,6 @@ def test_admin_gets_past_the_role_check_on_every_protected_route(signed_in, back
     assert reachable("ADMIN", signed_in) == ALL_ROUTES
 
 
-def test_dba_reaches_schema_audit_and_the_ai_routes(signed_in, backends):
-    allowed = reachable("DBA", signed_in)
-    assert AUDIT_ROUTES <= allowed
-    assert AI_ROUTES <= allowed
-    assert allowed == EXPECTED_ACCESS["DBA"]
-
-
 def test_analyst_reaches_the_ai_routes_but_not_schema_audit(signed_in, backends):
     allowed = reachable("ANALYST", signed_in)
     assert AI_ROUTES <= allowed
@@ -475,16 +467,15 @@ def test_an_account_without_an_application_role_reaches_nothing(signed_in, backe
 
 
 def test_role_names_in_the_token_are_matched_whatever_their_case(signed_in, backends):
-    token = signed_in.as_role("dba")
+    token = signed_in.as_role("admin")
     assert send("GET", "/api/schema-audit/rules", token) != 403
 
 
-@pytest.mark.parametrize("role", ["VIEWER", "ANALYST", "DBA", None])
+@pytest.mark.parametrize("role", ["VIEWER", "ANALYST", None])
 def test_a_refused_request_reaches_neither_the_database_nor_the_model(role, signed_in, backends):
     token = signed_in.as_role(role)
     refused = sorted(ALL_ROUTES - EXPECTED_ACCESS[role])
-    if role != "DBA":
-        assert refused, "nothing to refuse, so nothing was checked"
+    assert refused, "nothing to refuse, so nothing was checked"
 
     for key in refused:
         method, path = key
