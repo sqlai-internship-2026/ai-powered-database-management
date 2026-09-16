@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLanguage } from '../i18n'
 
 // Renders whatever columns a generated query happened to return. Nothing here
 // knows the schema: the backend sends the column names it read off the cursor,
@@ -16,13 +17,15 @@ import { useEffect, useState } from 'react'
 
 const PAGE_SIZE = 50
 
-export function formatCell(value) {
+export function formatCell(value, locale = 'en-US') {
   if (value === null || value === undefined) return '-'
-  if (typeof value === 'number') return value.toLocaleString('en-US')
+  if (typeof value === 'number') return value.toLocaleString(locale)
   return String(value)
 }
 
 export default function ResultTable({ columns, rows, emptyMessage }) {
+  const { language, t } = useLanguage()
+  const locale = language === 'tr' ? 'tr-TR' : 'en-US'
   const [page, setPage] = useState(0)
 
   // A refreshed card fetches new rows, and page seven of the old result says
@@ -33,7 +36,9 @@ export default function ResultTable({ columns, rows, emptyMessage }) {
     return (
       <p className="chart-empty">
         {emptyMessage ??
-          'The query ran and returned no rows. That is an answer too - nothing in the data matches the question.'}
+          t(
+            'The query ran and returned no rows. That is an answer too - nothing in the data matches the question.',
+          )}
       </p>
     )
   }
@@ -60,7 +65,7 @@ export default function ResultTable({ columns, rows, emptyMessage }) {
             {shown.map((row, index) => (
               <tr key={first + index}>
                 {columns.map((column) => (
-                  <td key={column}>{formatCell(row[column])}</td>
+                  <td key={column}>{formatCell(row[column], locale)}</td>
                 ))}
               </tr>
             ))}
@@ -73,16 +78,17 @@ export default function ResultTable({ columns, rows, emptyMessage }) {
       {pageCount > 1 ? (
         <div className="table-pager">
           <span className="table-pager-range">
-            {`${(first + 1).toLocaleString('en-US')}-${Math.min(
-              first + PAGE_SIZE,
-              rows.length,
-            ).toLocaleString('en-US')} of ${rows.length.toLocaleString('en-US')}`}
+            {t('{from}-{to} of {total}', {
+              from: (first + 1).toLocaleString(locale),
+              to: Math.min(first + PAGE_SIZE, rows.length).toLocaleString(locale),
+              total: rows.length.toLocaleString(locale),
+            })}
           </span>
           <div className="table-pager-controls">
             <button
               type="button"
               className="icon-button"
-              aria-label="Previous page"
+              aria-label={t('Previous page')}
               disabled={current === 0}
               onClick={() => setPage(current - 1)}
             >
@@ -94,7 +100,7 @@ export default function ResultTable({ columns, rows, emptyMessage }) {
             <button
               type="button"
               className="icon-button"
-              aria-label="Next page"
+              aria-label={t('Next page')}
               disabled={current >= pageCount - 1}
               onClick={() => setPage(current + 1)}
             >

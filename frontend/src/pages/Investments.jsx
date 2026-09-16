@@ -3,7 +3,20 @@ import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
 import SummaryStrip from '../components/SummaryStrip'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { formatCurrency, formatDay, formatNumber } from '../utils/format'
+
+// A project with no investment attached, and the type of the spend, are both
+// words rather than names: they are read in the reader's language.
+function ProjectName({ name }) {
+  const t = useT()
+  return <span className="cell-primary">{name || t('Unassigned')}</span>
+}
+
+function TypeName({ type }) {
+  const t = useT()
+  return type ? t(type) : '-'
+}
 
 // Which programme the money went to, what kind of spend it was, how much and
 // when. The amount and the date are the two columns anybody sorts by, so both
@@ -13,11 +26,13 @@ const columns = [
     key: 'project_name',
     header: 'Project',
     className: 'cell-text',
-    render: (investment) => (
-      <span className="cell-primary">{investment.project_name || 'Unassigned'}</span>
-    ),
+    render: (investment) => <ProjectName name={investment.project_name} />,
   },
-  { key: 'investment_type', header: 'Type' },
+  {
+    key: 'investment_type',
+    header: 'Type',
+    render: (investment) => <TypeName type={investment.investment_type} />,
+  },
   {
     key: 'amount',
     header: 'Amount',
@@ -41,6 +56,7 @@ const filters = [
 
 export default function Investments() {
   const { data: investments, loading, error } = useApiData('/api/investments', [])
+  const t = useT()
 
   // Summed over the rows already on the screen; no second endpoint, and so no
   // way for the total to disagree with the table under it.
@@ -55,16 +71,18 @@ export default function Investments() {
   return (
     <>
       <PageHeader
-        eyebrow="Management data"
-        title="Investments"
-        description="Every investment recorded against a project, with its type, amount and date."
+        eyebrow={t('Management data')}
+        title={t('Investments')}
+        description={t(
+          'Every investment recorded against a project, with its type, amount and date.',
+        )}
       />
 
       {!loading && !error ? (
         <SummaryStrip
           items={[
-            { label: 'Records', value: formatNumber(totals.count) },
-            { label: 'Total amount', value: formatCurrency(totals.amount) },
+            { label: t('Records'), value: formatNumber(totals.count) },
+            { label: t('Total amount'), value: formatCurrency(totals.amount) },
           ]}
         />
       ) : null}

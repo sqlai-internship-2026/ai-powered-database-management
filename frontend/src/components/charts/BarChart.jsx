@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../../i18n'
 
 // Horizontal bars for one series over nominal categories: the length carries
 // the magnitude, so every bar gets the same colour. There is no legend because
@@ -10,12 +11,17 @@ import { useState } from 'react'
 export default function BarChart({
   data,
   formatValue = (value) => value,
-  emptyMessage = 'Nothing to chart for this selection.',
+  emptyMessage,
 }) {
+  const t = useT()
   const [hovered, setHovered] = useState(null)
 
   if (!data || data.length === 0) {
-    return <p className="chart-empty">{emptyMessage}</p>
+    return (
+      <p className="chart-empty">
+        {emptyMessage || t('Nothing to chart for this selection.')}
+      </p>
+    )
   }
 
   const max = Math.max(...data.map((row) => row.value || 0), 0)

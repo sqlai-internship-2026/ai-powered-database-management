@@ -1,6 +1,7 @@
 import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { formatDay } from '../utils/format'
 
 // One person is one thing, so the two name columns are one column with the
@@ -40,13 +41,16 @@ const filters = [
 
 export default function Employees() {
   const { data: employees, loading, error } = useApiData('/api/employees', [])
+  const t = useT()
 
   return (
     <>
       <PageHeader
-        eyebrow="Management data"
-        title="Employees"
-        description="The company directory: who works here, what they do and which department they belong to."
+        eyebrow={t('Management data')}
+        title={t('Employees')}
+        description={t(
+          'The company directory: who works here, what they do and which department they belong to.',
+        )}
       />
       <DataTable
         columns={columns}

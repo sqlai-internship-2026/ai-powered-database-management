@@ -6,9 +6,11 @@ import StatusBadge from '../components/StatusBadge'
 import { meterState } from '../components/charts/Meter'
 import { ChevronRightIcon, ClockIcon } from '../components/icons'
 import { apiGet } from '../utils/api'
+import { useT } from '../i18n'
 import {
   daysUntil,
   formatCompactCurrency,
+  formatCount,
   formatCurrency,
   formatDay,
   formatNumber,
@@ -35,8 +37,8 @@ const SECTIONS = [
 // answered as "not found" without asking the backend.
 const ID_PATTERN = /^\d+$/
 
-function plural(count, one, many = `${one}s`) {
-  return `${formatNumber(count)} ${count === 1 ? one : many}`
+function plural(count, one, many) {
+  return formatCount(count, one, many)
 }
 
 // Whole calendar months between two ISO dates, counted the way the Portfolio
@@ -54,35 +56,44 @@ function monthsBetween(startIso, endIso) {
 
 // Where today falls against the schedule, from the dates alone. A project still
 // running after its end date says so in words; nothing is inferred beyond that.
-function describeTimeline(project) {
+function describeTimeline(project, t) {
   const toStart = daysUntil(project.start_date)
   const toEnd = daysUntil(project.end_date)
 
   if (toStart !== null && toStart > 0) {
-    return { text: `Starts in ${plural(toStart, 'day')}` }
+    return { text: t('Starts in {duration}', { duration: plural(toStart, 'day') }) }
   }
   if (toEnd === null) return null
-  if (toEnd === 0) return { text: 'Ends today' }
-  if (toEnd > 0) return { text: `${plural(toEnd, 'day')} until the end date` }
-  if (project.status === 'Completed') {
-    return { text: `Ended ${plural(-toEnd, 'day')} ago` }
+  if (toEnd === 0) return { text: t('Ends today') }
+  if (toEnd > 0) {
+    return {
+      text: t('{duration} until the end date', { duration: plural(toEnd, 'day') }),
+    }
   }
-  return { text: `${plural(-toEnd, 'day')} past the end date`, late: true }
+  if (project.status === 'Completed') {
+    return { text: t('Ended {duration} ago', { duration: plural(-toEnd, 'day') }) }
+  }
+  return {
+    text: t('{duration} past the end date', { duration: plural(-toEnd, 'day') }),
+    late: true,
+  }
 }
 
-function budgetPosition(summary) {
-  if (summary.budget === null) return { text: 'Budget not available' }
+function budgetPosition(summary, t) {
+  if (summary.budget === null) return { text: t('Budget not available') }
   if (summary.over_budget) {
     return {
-      text: `Over budget by ${formatCompactCurrency(-summary.remaining)}`,
+      text: t('Over budget by {amount}', {
+        amount: formatCompactCurrency(-summary.remaining),
+      }),
       tone: 'over',
     }
   }
-  if (summary.budget === 0) return { text: 'Budget is zero' }
+  if (summary.budget === 0) return { text: t('Budget is zero') }
   if (meterState(summary.utilization) === 'warning') {
-    return { text: 'Within budget, close to its limit', tone: 'near' }
+    return { text: t('Within budget, close to its limit'), tone: 'near' }
   }
-  return { text: 'Within budget' }
+  return { text: t('Within budget') }
 }
 
 // Loads one project. Only a result for the id and the attempt on screen is ever
@@ -133,6 +144,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const detail = useProjectDetail(projectId)
+  const t = useT()
   const [section, setSection] = useState('overview')
 
   // Another project opens on its overview, not on the tab the last one was
@@ -154,7 +166,7 @@ export default function ProjectDetail() {
   return (
     <DetailDrawer
       titleId={TITLE_ID}
-      closeLabel="Close project details"
+      closeLabel={t('Close project details')}
       onClose={close}
       header={<DrawerHeader detail={detail} />}
     >
@@ -170,11 +182,13 @@ export default function ProjectDetail() {
 }
 
 function DrawerHeader({ detail }) {
+  const t = useT()
+
   if (detail.phase === 'loading') {
     return (
       <div className="detail-head-skeleton" aria-busy="true">
         <h2 id={TITLE_ID} className="visually-hidden">
-          Loading project
+          {t('Loading project')}
         </h2>
         <div className="skeleton skeleton-line detail-skeleton-title" />
         <div className="skeleton skeleton-line" style={{ width: '82%' }} />
@@ -186,9 +200,11 @@ function DrawerHeader({ detail }) {
   if (detail.phase !== 'ready') {
     return (
       <>
-        <span className="page-eyebrow">Project</span>
+        <span className="page-eyebrow">{t('Project')}</span>
         <h2 id={TITLE_ID} className="detail-title">
-          {detail.phase === 'missing' ? 'Project not found' : 'Project could not be loaded'}
+          {detail.phase === 'missing'
+            ? t('Project not found')
+            : t('Project could not be loaded')}
         </h2>
       </>
     )
@@ -197,7 +213,7 @@ function DrawerHeader({ detail }) {
   const { project } = detail.data
   return (
     <>
-      <span className="page-eyebrow">Project</span>
+      <span className="page-eyebrow">{t('Project')}</span>
       <div className="detail-title-row">
         <h2 id={TITLE_ID} className="detail-title">
           {project.name}
@@ -220,6 +236,8 @@ function DrawerHeader({ detail }) {
 }
 
 function DrawerBody({ detail, projectId, section, onSection, onClose }) {
+  const t = useT()
+
   if (detail.phase === 'loading') {
     return (
       <>
@@ -228,7 +246,7 @@ function DrawerBody({ detail, projectId, section, onSection, onClose }) {
             <div key={index} className="skeleton" />
           ))}
         </div>
-        <StateBlock variant="loading" title="Loading project details" lines={6} />
+        <StateBlock variant="loading" title={t('Loading project details')} lines={6} />
       </>
     )
   }
@@ -237,11 +255,13 @@ function DrawerBody({ detail, projectId, section, onSection, onClose }) {
     return (
       <StateBlock
         variant="error"
-        title={`No project has the ID ${projectId}`}
-        text="It may have been removed, or the link may be mistyped. The project list is still behind this panel."
+        title={t('No project has the ID {id}', { id: projectId })}
+        text={t(
+          'It may have been removed, or the link may be mistyped. The project list is still behind this panel.',
+        )}
         actions={
           <button type="button" className="button" onClick={onClose}>
-            Back to projects
+            {t('Back to projects')}
           </button>
         }
       />
@@ -252,15 +272,15 @@ function DrawerBody({ detail, projectId, section, onSection, onClose }) {
     return (
       <StateBlock
         variant="error"
-        title="The project details did not load"
+        title={t('The project details did not load')}
         text={detail.message}
         actions={
           <div className="detail-state-actions">
             <button type="button" className="button button-primary" onClick={detail.retry}>
-              Try again
+              {t('Try again')}
             </button>
             <button type="button" className="button" onClick={onClose}>
-              Close
+              {t('Close')}
             </button>
           </div>
         }
@@ -316,15 +336,18 @@ function Figure({ label, value, exact, note, over = false }) {
 // "Over budget". A budget of zero is a real figure: it is shown, and anything
 // invested against it is over.
 function BudgetFigures({ summary }) {
+  const t = useT()
   const known = summary.budget !== null
   const hasBudget = known && summary.budget > 0
   const state = hasBudget ? meterState(summary.utilization) : 'unknown'
   const over = summary.over_budget
 
   let note = null
-  if (over) note = { text: 'Over budget', className: 'detail-figure-note is-over' }
-  else if (state === 'warning') note = { text: 'Near limit', className: 'detail-figure-note is-near' }
-  else if (known && !hasBudget) note = { text: 'Budget is zero', className: 'detail-figure-note' }
+  if (over) note = { text: t('Over budget'), className: 'detail-figure-note is-over' }
+  else if (state === 'warning')
+    note = { text: t('Near limit'), className: 'detail-figure-note is-near' }
+  else if (known && !hasBudget)
+    note = { text: t('Budget is zero'), className: 'detail-figure-note' }
 
   const fillClass =
     state === 'critical'
@@ -334,27 +357,27 @@ function BudgetFigures({ summary }) {
         : 'kpi-meter-fill'
 
   return (
-    <dl className="detail-figures" aria-label="Budget position">
+    <dl className="detail-figures" aria-label={t('Budget position')}>
       <Figure
-        label="Budget"
+        label={t('Budget')}
         value={known ? formatCompactCurrency(summary.budget) : '—'}
         exact={summary.budget}
-        note={known ? null : 'Budget not available'}
+        note={known ? null : t('Budget not available')}
       />
       <Figure
-        label="Total invested"
+        label={t('Total invested')}
         value={formatCompactCurrency(summary.total_invested)}
         exact={summary.total_invested}
         note={plural(summary.investment_count, 'record')}
       />
       <Figure
-        label="Remaining"
+        label={t('Remaining')}
         value={summary.remaining === null ? '—' : formatCompactCurrency(summary.remaining)}
         exact={summary.remaining}
         over={over}
       />
       <div className="detail-figure">
-        <dt>Utilization</dt>
+        <dt>{t('Utilization')}</dt>
         {/* No budget above zero means no share of one: a dash, never 0%. */}
         <dd className="detail-figure-value">
           {hasBudget ? formatPercent(summary.utilization) : '—'}
@@ -381,6 +404,7 @@ function BudgetFigures({ summary }) {
 // what the panel below shows, so they carry tab and tabpanel roles and move with
 // the arrow keys, the way a screen reader user expects tabs to.
 function SectionTabs({ value, onChange }) {
+  const t = useT()
   const refs = useRef({})
 
   function onKeyDown(event, index) {
@@ -398,7 +422,7 @@ function SectionTabs({ value, onChange }) {
   }
 
   return (
-    <div className="segmented detail-tabs" role="tablist" aria-label="Project sections">
+    <div className="segmented detail-tabs" role="tablist" aria-label={t('Project sections')}>
       {SECTIONS.map((entry, index) => {
         const selected = entry.id === value
         return (
@@ -417,7 +441,7 @@ function SectionTabs({ value, onChange }) {
             onClick={() => onChange(entry.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
           >
-            {entry.label}
+            {t(entry.label)}
           </button>
         )
       })}
@@ -428,13 +452,14 @@ function SectionTabs({ value, onChange }) {
 /* ---------- Overview ---------- */
 
 function Overview({ data, onSection }) {
+  const t = useT()
   const { project, counts, team, products, investments } = data
   const departments = new Set(team.map((person) => person.department_name).filter(Boolean)).size
   const categories = new Set(products.map((product) => product.category).filter(Boolean)).size
   const latest = investments.find((row) => row.investment_date)?.investment_date
   const months = monthsBetween(project.start_date, project.end_date)
-  const timeline = describeTimeline(project)
-  const position = budgetPosition(data.financial_summary)
+  const timeline = describeTimeline(project, t)
+  const position = budgetPosition(data.financial_summary, t)
 
   // The relation rows open their tab. Focus follows to the tab, because the
   // button that was pressed disappears with the overview.
@@ -449,56 +474,76 @@ function Overview({ data, onSection }) {
     <div>
       {project.description ? (
         <section className="detail-section">
-          <h3 className="detail-section-title">About</h3>
+          <h3 className="detail-section-title">{t('About')}</h3>
           <p className="detail-prose">{project.description}</p>
         </section>
       ) : null}
 
       <section className="detail-section">
-        <h3 className="detail-section-title">Schedule and budget</h3>
+        <h3 className="detail-section-title">{t('Schedule and budget')}</h3>
         <dl className="detail-facts">
           <div>
-            <dt>Duration</dt>
-            <dd>{months === null ? 'Dates not recorded' : plural(months, 'month')}</dd>
+            <dt>{t('Duration')}</dt>
+            <dd>
+              {months === null ? t('Dates not recorded') : plural(months, 'month')}
+            </dd>
           </div>
           {timeline ? (
             <div>
-              <dt>Timeline</dt>
+              <dt>{t('Timeline')}</dt>
               <dd className={timeline.late ? 'is-late' : undefined}>{timeline.text}</dd>
             </div>
           ) : null}
           <div>
-            <dt>Budget position</dt>
+            <dt>{t('Budget position')}</dt>
             <dd className={position.tone ? `is-${position.tone}` : undefined}>{position.text}</dd>
           </div>
         </dl>
       </section>
 
       <section className="detail-section">
-        <h3 className="detail-section-title">Linked records</h3>
+        <h3 className="detail-section-title">{t('Linked records')}</h3>
         <ul className="detail-relations">
           <Relation
-            label="Team"
-            summary={`${plural(counts.team_members, 'person', 'people')}${
-              departments ? ` from ${plural(departments, 'department')}` : ''
-            }`}
+            label={t('Team')}
+            summary={
+              departments
+                ? t('{people} from {departments}', {
+                    people: plural(counts.team_members, 'person', 'people'),
+                    departments: plural(departments, 'department'),
+                  })
+                : plural(counts.team_members, 'person', 'people')
+            }
             path="project_employees → employees"
             onOpen={() => open('team')}
           />
           <Relation
-            label="Products"
-            summary={`${plural(counts.products, 'product')}, ${plural(
-              counts.product_units,
-              'unit',
-            )}${categories ? ` in ${plural(categories, 'category', 'categories')}` : ''}`}
+            label={t('Products')}
+            summary={(() => {
+              const both = t('{products}, {units}', {
+                products: plural(counts.products, 'product'),
+                units: plural(counts.product_units, 'unit'),
+              })
+              return categories
+                ? t('{summary} in {categories}', {
+                    summary: both,
+                    categories: plural(categories, 'category', 'categories'),
+                  })
+                : both
+            })()}
             path="project_products → products"
             onOpen={() => open('products')}
           />
           <Relation
-            label="Investments"
-            summary={`${plural(counts.investments, 'record')}${
-              latest ? `, latest ${formatDay(latest)}` : ''
-            }`}
+            label={t('Investments')}
+            summary={
+              latest
+                ? t('{records}, latest {date}', {
+                    records: plural(counts.investments, 'record'),
+                    date: formatDay(latest),
+                  })
+                : plural(counts.investments, 'record')
+            }
             path="investments"
             onOpen={() => open('investments')}
           />
@@ -528,11 +573,13 @@ function Relation({ label, summary, path, onOpen }) {
 /* ---------- Relations ---------- */
 
 function TeamTable({ team }) {
+  const t = useT()
+
   if (team.length === 0) {
     return (
       <StateBlock
-        title="No team members assigned"
-        text="People appear here once they are assigned to this project."
+        title={t('No team members assigned')}
+        text={t('People appear here once they are assigned to this project.')}
       />
     )
   }
@@ -540,13 +587,13 @@ function TeamTable({ team }) {
   return (
     <div className="detail-table-scroll">
       <table className="detail-table">
-        <caption className="visually-hidden">Team members</caption>
+        <caption className="visually-hidden">{t('Team members')}</caption>
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Role on project</th>
-            <th scope="col">Title</th>
-            <th scope="col">Department</th>
+            <th scope="col">{t('Name')}</th>
+            <th scope="col">{t('Role on project')}</th>
+            <th scope="col">{t('Title')}</th>
+            <th scope="col">{t('Department')}</th>
           </tr>
         </thead>
         <tbody>
@@ -572,11 +619,15 @@ function TeamTable({ team }) {
 }
 
 function ProductsTable({ products }) {
+  const t = useT()
+
   if (products.length === 0) {
     return (
       <StateBlock
-        title="No products assigned"
-        text="Products and subsystems appear here once they are allocated to this project."
+        title={t('No products assigned')}
+        text={t(
+          'Products and subsystems appear here once they are allocated to this project.',
+        )}
       />
     )
   }
@@ -587,19 +638,19 @@ function ProductsTable({ products }) {
   return (
     <div className="detail-table-scroll">
       <table className="detail-table">
-        <caption className="visually-hidden">Products used</caption>
+        <caption className="visually-hidden">{t('Products used')}</caption>
         <thead>
           <tr>
-            <th scope="col">Product</th>
-            <th scope="col">Category</th>
+            <th scope="col">{t('Product')}</th>
+            <th scope="col">{t('Category')}</th>
             <th scope="col" className="align-right">
-              Qty
+              {t('Qty')}
             </th>
             <th scope="col" className="align-right">
-              Unit cost
+              {t('Unit cost')}
             </th>
             <th scope="col" className="align-right">
-              Total
+              {t('Total')}
             </th>
           </tr>
         </thead>
@@ -607,7 +658,9 @@ function ProductsTable({ products }) {
           {products.map((product) => (
             <tr key={product.product_id}>
               <td className="cell-primary">{product.name}</td>
-              <td className="cell-muted">{product.category || '-'}</td>
+              <td className="cell-muted">
+                {product.category ? t(product.category) : '-'}
+              </td>
               <td className="align-right">{formatNumber(product.quantity)}</td>
               <td className="align-right">{formatCurrency(product.unit_cost)}</td>
               <td className="align-right">{formatCurrency(product.line_total)}</td>
@@ -616,7 +669,7 @@ function ProductsTable({ products }) {
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={2}>Total</td>
+            <td colSpan={2}>{t('Total')}</td>
             <td className="align-right">{formatNumber(units)}</td>
             <td />
             <td className="align-right">{formatCurrency(cost)}</td>
@@ -628,11 +681,13 @@ function ProductsTable({ products }) {
 }
 
 function InvestmentsTable({ investments }) {
+  const t = useT()
+
   if (investments.length === 0) {
     return (
       <StateBlock
-        title="No investments recorded"
-        text="Investments appear here once they are recorded against this project."
+        title={t('No investments recorded')}
+        text={t('Investments appear here once they are recorded against this project.')}
       />
     )
   }
@@ -640,13 +695,13 @@ function InvestmentsTable({ investments }) {
   return (
     <div className="detail-table-scroll">
       <table className="detail-table">
-        <caption className="visually-hidden">Investments, newest first</caption>
+        <caption className="visually-hidden">{t('Investments, newest first')}</caption>
         <thead>
           <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Type</th>
+            <th scope="col">{t('Date')}</th>
+            <th scope="col">{t('Type')}</th>
             <th scope="col" className="align-right">
-              Amount
+              {t('Amount')}
             </th>
           </tr>
         </thead>
@@ -654,7 +709,9 @@ function InvestmentsTable({ investments }) {
           {investments.map((investment) => (
             <tr key={investment.investment_id}>
               <td>{formatDay(investment.investment_date)}</td>
-              <td>{investment.investment_type || '-'}</td>
+              <td>
+                {investment.investment_type ? t(investment.investment_type) : '-'}
+              </td>
               <td className="align-right">{formatCurrency(investment.amount)}</td>
             </tr>
           ))}

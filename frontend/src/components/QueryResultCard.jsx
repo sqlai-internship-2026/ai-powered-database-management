@@ -3,6 +3,7 @@ import AutoChart from './charts/AutoChart'
 import SegmentedControl from './SegmentedControl'
 import { CodeIcon, CopyIcon, DownloadIcon } from './icons'
 import { downloadCsv } from '../utils/csv'
+import { useT } from '../i18n'
 import { describeRowCount } from '../utils/format'
 
 // One answered question: its title, the sentence describing it, the chart, the
@@ -33,6 +34,7 @@ export default function QueryResultCard({
   onTitleChange,
   actions,
 }) {
+  const t = useT()
   const [showSql, setShowSql] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -71,7 +73,7 @@ export default function QueryResultCard({
               className="card-title-input"
               value={card.title}
               maxLength={120}
-              aria-label="Card title"
+              aria-label={t('Card title')}
               onChange={(event) => onTitleChange(event.target.value)}
             />
           ) : (
@@ -89,11 +91,13 @@ export default function QueryResultCard({
               })}
             </span>
             {card.truncated ? (
-              <span className="chip chip-risk-medium">Cut off at the row limit</span>
+              <span className="chip chip-risk-medium">
+                {t('Cut off at the row limit')}
+              </span>
             ) : null}
             {card.loading ? (
               <span className="chip chip-pending" role="status">
-                Running again...
+                {t('Running again...')}
               </span>
             ) : null}
             {chart?.reason ? (
@@ -117,12 +121,12 @@ export default function QueryResultCard({
         <div className="chart-controls">
           {alternatives.length > 1 ? (
             <SegmentedControl
-              label="Chart type"
+              label={t('Chart type')}
               value={activeType}
               size="sm"
               options={alternatives.map((name) => ({
                 value: name,
-                label: TYPE_LABELS[name] || name,
+                label: t(TYPE_LABELS[name] || name),
               }))}
               onChange={(name) => onTypeChange?.(name)}
             />
@@ -132,7 +136,7 @@ export default function QueryResultCard({
               the marks stand for, rather than the first column always winning. */}
           {measures.length > 1 && activeType !== 'table' && activeType !== 'kpi' ? (
             <label className="field chart-measure">
-              <span className="field-label">Measure</span>
+              <span className="field-label">{t('Measure')}</span>
               <select
                 value={activeValue}
                 onChange={(event) => onValueChange?.(event.target.value)}
@@ -168,7 +172,7 @@ export default function QueryResultCard({
           onClick={() => setShowSql((current) => !current)}
         >
           <CodeIcon size={14} />
-          {showSql ? 'Hide SQL' : 'Show SQL'}
+          {showSql ? t('Hide SQL') : t('Show SQL')}
         </button>
         <button
           type="button"
@@ -183,7 +187,7 @@ export default function QueryResultCard({
           }
         >
           <DownloadIcon size={14} />
-          Download CSV
+          {t('Download CSV')}
         </button>
       </div>
 
@@ -194,14 +198,16 @@ export default function QueryResultCard({
       {showSql ? (
         <div className="code-block">
           <button type="button" className="copy-button" onClick={copySql}>
-            {copied ? 'Copied' : <CopyIcon size={13} />}
-            {copied ? null : <span className="visually-hidden">Copy the SQL</span>}
+            {copied ? t('Copied') : <CopyIcon size={13} />}
+            {copied ? null : (
+              <span className="visually-hidden">{t('Copy the SQL')}</span>
+            )}
           </button>
           <pre>{card.sql}</pre>
           {/* Announced rather than only shown: the button changing its own
               label is invisible to a reader who is not looking at it. */}
           <span className="visually-hidden" role="status" aria-live="polite">
-            {copied ? 'SQL copied to the clipboard' : ''}
+            {copied ? t('SQL copied to the clipboard') : ''}
           </span>
         </div>
       ) : null}

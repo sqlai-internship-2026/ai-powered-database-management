@@ -50,6 +50,8 @@ export function hasPermission(roles, permission) {
   return roles.some((role) => allowed.includes(role))
 }
 
+// The English label. Screens pass it through the translator, so this file
+// stays a copy of the backend matrix and nothing else.
 export function roleLabel(role) {
   return role ? ROLE_LABELS[role] : 'No role assigned'
 }

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { navigationItems } from './Sidebar'
 import { initials } from '../utils/format'
+import { useLanguage } from '../i18n'
 import { applyTheme, readTheme, saveTheme } from '../utils/theme'
 import { MenuIcon, MoonIcon, SunIcon } from './icons'
 
@@ -11,26 +12,34 @@ import { MenuIcon, MoonIcon, SunIcon } from './icons'
 // twice, one above the other, waste the only strip of the screen that is
 // always visible and make the page look emptier than it is.
 
-function useLocationTrail() {
+function useLocationTrail(t) {
   const { pathname } = useLocation()
   const match = navigationItems
     .filter((item) => pathname.startsWith(item.to))
     .sort((a, b) => b.to.length - a.to.length)[0]
 
-  if (!match) return { section: 'SQL-AI', page: 'Not found' }
-  return { section: match.group, page: match.label }
+  if (!match) return { section: 'SQL-AI', page: t('Not found') }
+  return { section: t(match.group), page: t(match.label) }
 }
 
 export default function Topbar({ menuButtonRef, drawerOpen = false, onOpenDrawer }) {
   const { username, fullName } = useAuth()
-  const { section, page } = useLocationTrail()
-  const displayName = fullName || username
+  const { language, toggleLanguage, t } = useLanguage()
+  const { section, page } = useLocationTrail(t)
+  const displayName = fullName || username || t('Unknown user')
 
   // Read from the page rather than from storage: index.html has already applied
   // the saved choice by the time this renders.
   const [theme, setTheme] = useState(readTheme)
   const nextTheme = theme === 'dark' ? 'light' : 'dark'
-  const themeLabel = `Switch to ${nextTheme} theme`
+  const themeLabel =
+    nextTheme === 'dark' ? t('Switch to dark theme') : t('Switch to light theme')
+
+  // The same convention as the theme button beside it: what is written on the
+  // button is what a press switches to, so "TR" means "press for Turkish".
+  const nextLanguage = language === 'tr' ? 'en' : 'tr'
+  const languageLabel =
+    nextLanguage === 'tr' ? t('Switch to Turkish') : t('Switch to English')
 
   function toggleTheme() {
     applyTheme(nextTheme)
@@ -46,14 +55,14 @@ export default function Topbar({ menuButtonRef, drawerOpen = false, onOpenDrawer
           className="topbar-menu-button"
           onClick={onOpenDrawer}
           ref={menuButtonRef}
-          aria-label="Open the navigation menu"
+          aria-label={t('Open the navigation menu')}
           aria-expanded={drawerOpen}
           aria-controls="app-sidebar"
         >
           <MenuIcon size={20} />
         </button>
 
-        <nav className="topbar-breadcrumb" aria-label="Breadcrumb">
+        <nav className="topbar-breadcrumb" aria-label={t('Breadcrumb')}>
           <span>{section}</span>
           <span className="topbar-breadcrumb-sep" aria-hidden="true">
             /
@@ -76,9 +85,21 @@ export default function Topbar({ menuButtonRef, drawerOpen = false, onOpenDrawer
           {theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
         </button>
 
+        {/* Two letters rather than a flag: a language is not a country, and
+            the pair of buttons reads as one row of settings at this size. */}
+        <button
+          type="button"
+          className="topbar-icon-button topbar-language-button"
+          onClick={toggleLanguage}
+          aria-label={languageLabel}
+          title={languageLabel}
+        >
+          {nextLanguage.toUpperCase()}
+        </button>
+
         <div className="topbar-user">
           <span className="topbar-username">
-            Signed in as <strong>{displayName}</strong>
+            {t('Signed in as')} <strong>{displayName}</strong>
           </span>
           <span className="topbar-avatar" aria-hidden="true">
             {initials(displayName)}

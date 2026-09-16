@@ -2,6 +2,7 @@
 // fetching, loading and error handling stay in one place.
 import { useEffect, useState } from 'react'
 import keycloak from '../keycloak'
+import { translateNow } from '../i18n'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(
   /\/+$/,
@@ -34,7 +35,7 @@ function readDetail(body, status) {
     const messages = body.detail.map((entry) => entry.msg).filter(Boolean)
     if (messages.length > 0) return messages.join('; ')
   }
-  return `Request failed with status ${status}`
+  return translateNow('Request failed with status {status}', { status })
 }
 
 // The backend rejects a call without a Keycloak access token, so every request
@@ -48,7 +49,9 @@ async function authHeaders() {
     // The refresh token is gone as well, so there is no session left to renew.
     // Back to Keycloak, which is where the application starts anyway.
     keycloak.login()
-    throw new Error('Your session has expired. Redirecting to the login page.')
+    throw new Error(
+      translateNow('Your session has expired. Redirecting to the login page.'),
+    )
   }
 
   return { Authorization: `Bearer ${keycloak.token}` }
@@ -63,7 +66,9 @@ async function send(url, init) {
     return await fetch(url, init)
   } catch {
     const error = new Error(
-      'Could not reach the server. Check that the backend is running, then try again.',
+      translateNow(
+        'Could not reach the server. Check that the backend is running, then try again.',
+      ),
     )
     error.status = 0
     throw error
@@ -76,7 +81,9 @@ export async function apiGet(path) {
   })
 
   if (!response.ok) {
-    let detail = `Request failed with status ${response.status}`
+    let detail = translateNow('Request failed with status {status}', {
+      status: response.status,
+    })
     try {
       detail = readDetail(await response.json(), response.status)
     } catch {
@@ -108,7 +115,9 @@ export async function apiPost(path, body) {
   })
 
   if (!response.ok) {
-    let detail = `Request failed with status ${response.status}`
+    let detail = translateNow('Request failed with status {status}', {
+      status: response.status,
+    })
     try {
       detail = readDetail(await response.json(), response.status)
     } catch {

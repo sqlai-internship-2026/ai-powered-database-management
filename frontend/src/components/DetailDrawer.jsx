@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from './icons'
+import { useT } from '../i18n'
 
 // A panel over the right-hand side of the page, for reading one record in full
 // without leaving the list it was picked from.
@@ -29,11 +30,12 @@ function focusableIn(container) {
 
 export default function DetailDrawer({
   titleId,
-  closeLabel = 'Close',
+  closeLabel,
   header,
   onClose,
   children,
 }) {
+  const t = useT()
   const panelRef = useRef(null)
   const closeRef = useRef(null)
   const returnRef = useRef(null)
@@ -105,7 +107,7 @@ export default function DetailDrawer({
             className="icon-button detail-drawer-close"
             onClick={onClose}
             ref={closeRef}
-            aria-label={closeLabel}
+            aria-label={closeLabel || t('Close')}
           >
             <CloseIcon size={18} />
           </button>

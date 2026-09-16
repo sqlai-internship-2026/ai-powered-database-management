@@ -730,6 +730,15 @@ summary:focus-visible,
   color: var(--color-text);
 }
 
+/* The language button carries two letters where its neighbour carries an
+   icon, so it borrows the same box and only sets the type. */
+.topbar-language-button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 /* A trail, not a title. The page heading below is the title, and printing the
    same words twice one above the other only makes a screen look emptier. */
 .topbar-breadcrumb {

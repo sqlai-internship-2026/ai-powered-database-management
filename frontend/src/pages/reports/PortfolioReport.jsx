@@ -14,9 +14,11 @@ import {
   BudgetIcon,
 } from '../../components/icons'
 import { buildQuery, useApiData } from '../../utils/api'
+import { useT } from '../../i18n'
 import {
   formatCompactCurrency,
   formatCurrency,
+  formatDay,
   formatMonths,
   formatNumber,
   formatPercent,
@@ -37,8 +39,8 @@ const categoryColumns = [
 const scheduleColumns = [
   { key: 'name', header: 'Program' },
   { key: 'status', header: 'Status' },
-  { key: 'start_date', header: 'Start' },
-  { key: 'end_date', header: 'End' },
+  { key: 'start_date', header: 'Start', value: (row) => formatDay(row.start_date) },
+  { key: 'end_date', header: 'End', value: (row) => formatDay(row.end_date) },
   { key: 'duration_months', header: 'Duration (months)', align: 'right' },
   {
     key: 'months_remaining',
@@ -93,6 +95,7 @@ const productColumns = [
 
 export default function PortfolioReport() {
   const { filters } = useOutletContext()
+  const t = useT()
   const query = buildQuery({ status: filters.statuses })
   const { data, loading, error } = useApiData(`/api/reports/portfolio${query}`)
 
@@ -101,7 +104,7 @@ export default function PortfolioReport() {
       <div className="card">
         <StateBlock
           variant="error"
-          title="Could not load the portfolio report"
+          title={t('Could not load the portfolio report')}
           text={error}
         />
       </div>
@@ -110,7 +113,11 @@ export default function PortfolioReport() {
   if (!data) {
     return (
       <div className="card">
-        <StateBlock variant="loading" title="Building the portfolio report" lines={6} />
+        <StateBlock
+          variant="loading"
+          title={t('Building the portfolio report')}
+          lines={6}
+        />
       </div>
     )
   }
@@ -127,43 +134,49 @@ export default function PortfolioReport() {
     <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
-          label="Programs"
+          label={t('Programs')}
           value={formatNumber(summary.project_count)}
-          hint={`${formatNumber(summary.average_duration_months)} months average duration`}
+          hint={t('{count} months average duration', {
+            count: formatNumber(summary.average_duration_months),
+          })}
           icon={<ProjectsIcon size={17} />}
           tone="primary"
         />
         <StatCard
-          label="Hardware Cost"
+          label={t('Hardware Cost')}
           value={formatCompactCurrency(summary.hardware_cost)}
-          hint={`${formatNumber(summary.unit_count)} units across the portfolio`}
+          hint={t('{count} units across the portfolio', {
+            count: formatNumber(summary.unit_count),
+          })}
           icon={<BudgetIcon size={17} />}
         />
         <StatCard
-          label="Catalog Items"
+          label={t('Catalog Items')}
           value={formatNumber(summary.catalog_size)}
-          hint="Products and subsystems"
+          hint={t('Products and subsystems')}
           icon={<ProductsIcon size={17} />}
         />
         <StatCard
-          label="Ending Within A Year"
+          label={t('Ending Within A Year')}
           value={formatNumber(summary.ending_soon_count)}
-          hint="Active programs closing in 12 months"
+          hint={t('Active programs closing in 12 months')}
           icon={<ClockIcon size={17} />}
           tone={summary.ending_soon_count > 0 ? 'warning' : 'neutral'}
         />
         <StatCard
-          label="Past End Date"
+          label={t('Past End Date')}
           value={formatNumber(summary.overdue_count)}
-          hint="Still Active or On Hold"
+          hint={t('Still Active or On Hold')}
           icon={<AlertIcon size={17} />}
           tone={summary.overdue_count > 0 ? 'danger' : 'neutral'}
         />
       </div>
 
       <ReportCard
-        title="Schedule position"
-        description="Where each program sits between its start and end date, soonest deadline first."
+        title={t('Schedule position')}
+        description={t(
+          'Where each program sits between its start and end date, soonest deadline first.',
+        )}
         columns={scheduleColumns}
         rows={schedule}
         csvName="program-schedule"
@@ -173,12 +186,12 @@ export default function PortfolioReport() {
           <table>
             <thead>
               <tr>
-                <th>Program</th>
-                <th>Status</th>
-                <th>Start</th>
-                <th>End</th>
-                <th className="align-right">Remaining</th>
-                <th className="meter-column">Time elapsed</th>
+                <th>{t('Program')}</th>
+                <th>{t('Status')}</th>
+                <th>{t('Start')}</th>
+                <th>{t('End')}</th>
+                <th className="align-right">{t('Remaining')}</th>
+                <th className="meter-column">{t('Time elapsed')}</th>
               </tr>
             </thead>
             <tbody>
@@ -192,8 +205,8 @@ export default function PortfolioReport() {
                     <td>
                       <StatusBadge status={project.status} />
                     </td>
-                    <td>{project.start_date}</td>
-                    <td>{project.end_date}</td>
+                    <td>{formatDay(project.start_date)}</td>
+                    <td>{formatDay(project.end_date)}</td>
                     <td className="align-right">
                       {formatMonths(project.months_remaining)}
                     </td>
@@ -201,7 +214,7 @@ export default function PortfolioReport() {
                       <Meter
                         percent={project.time_elapsed_percent}
                         state={overdue ? 'critical' : 'normal'}
-                        note={overdue ? 'Past end date' : null}
+                        note={overdue ? t('Past end date') : null}
                       />
                     </td>
                   </tr>
@@ -214,8 +227,10 @@ export default function PortfolioReport() {
 
       <div className="report-grid">
         <ReportCard
-          title="Hardware cost by category"
-          description="Unit cost multiplied by the quantity each program consumes."
+          title={t('Hardware cost by category')}
+          description={t(
+            'Unit cost multiplied by the quantity each program consumes.',
+          )}
           columns={categoryColumns}
           rows={byCategory}
           csvName="hardware-cost-by-category"
@@ -223,17 +238,20 @@ export default function PortfolioReport() {
         >
           <BarChart
             data={byCategory.map((row) => ({
-              label: row.label,
+              // A product category is a label rather than a name.
+              label: t(row.label),
               value: row.amount,
-              hint: `${formatNumber(row.unit_count)} units`,
+              hint: t('{count} units', { count: formatNumber(row.unit_count) }),
             }))}
             formatValue={formatCompactCurrency}
           />
         </ReportCard>
 
         <ReportCard
-          title="Hardware cost by program"
-          description="Material cost only - a program budget also covers labour, test and certification."
+          title={t('Hardware cost by program')}
+          description={t(
+            'Material cost only - a program budget also covers labour, test and certification.',
+          )}
           columns={usageColumns}
           rows={usage}
           csvName="hardware-cost-by-program"
@@ -243,7 +261,9 @@ export default function PortfolioReport() {
             data={usage.map((row) => ({
               label: row.name,
               value: row.hardware_cost,
-              hint: `${formatPercent(row.percent_of_budget)} of budget`,
+              hint: t('{percent} of budget', {
+                percent: formatPercent(row.percent_of_budget),
+              }),
             }))}
             formatValue={formatCompactCurrency}
           />
@@ -251,8 +271,8 @@ export default function PortfolioReport() {
       </div>
 
       <ReportCard
-        title="Product consumption"
-        description="Which catalog items the portfolio actually draws on."
+        title={t('Product consumption')}
+        description={t('Which catalog items the portfolio actually draws on.')}
         columns={productColumns}
         rows={topProducts}
         csvName="product-consumption"
@@ -262,7 +282,10 @@ export default function PortfolioReport() {
           data={topProducts.map((row) => ({
             label: row.name,
             value: row.amount,
-            hint: `${formatNumber(row.unit_count)} units on ${formatNumber(row.project_count)} programs`,
+            hint: t('{units} units on {programs} programs', {
+              units: formatNumber(row.unit_count),
+              programs: formatNumber(row.project_count),
+            }),
           }))}
           formatValue={formatCompactCurrency}
         />

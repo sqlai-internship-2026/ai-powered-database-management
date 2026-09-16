@@ -59,10 +59,10 @@ export function AuthProvider({ children }) {
     roles,
     role: effectiveRole(roles),
     can: (permission) => hasPermission(roles, permission),
+    // No username at all is a broken token rather than a person, so the
+    // wording of the stand-in is left to the screen that shows it.
     username:
-      keycloak.tokenParsed?.preferred_username ||
-      keycloak.tokenParsed?.name ||
-      'Unknown user',
+      keycloak.tokenParsed?.preferred_username || keycloak.tokenParsed?.name || '',
     fullName: keycloak.tokenParsed?.name || '',
     login: () => keycloak.login(),
     logout: () => keycloak.logout({ redirectUri: window.location.origin }),

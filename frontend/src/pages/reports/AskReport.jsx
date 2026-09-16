@@ -12,6 +12,7 @@ import {
   TrashIcon,
 } from '../../components/icons'
 import { apiPost, useApiData } from '../../utils/api'
+import { useT } from '../../i18n'
 import {
   deleteReport,
   listReports,
@@ -44,6 +45,7 @@ const emptyReport = { id: null, title: '', description: '' }
 const EMPTY_SIGNATURE = reportSignature({ title: '', description: '', cards: [] })
 
 export default function AskReport() {
+  const t = useT()
   const { data: examples } = useApiData('/api/reports/ask/examples')
 
   const [question, setQuestion] = useState('')
@@ -80,7 +82,7 @@ export default function AskReport() {
   function cardFrom(answer, overrides = {}) {
     return {
       id: newId(),
-      title: answer.question || 'Result',
+      title: answer.question || t('Result'),
       type: answer.chart?.type,
       valueColumn: answer.chart?.value_column,
       ...answer,
@@ -112,11 +114,12 @@ export default function AskReport() {
 
     if (pending) {
       setConfirm({
-        title: 'Replace the result on screen?',
-        description:
+        title: t('Replace the result on screen?'),
+        description: t(
           'This result has not been added to the report yet. Asking another question replaces it, and getting it back means asking again.',
-        confirmLabel: 'Replace it',
-        cancelLabel: 'Keep it',
+        ),
+        confirmLabel: t('Replace it'),
+        cancelLabel: t('Keep it'),
         onConfirm: () => {
           setConfirm(null)
           ask(asked)
@@ -211,11 +214,12 @@ export default function AskReport() {
     if (!id) return
     if (unsaved && hasCards) {
       setConfirm({
-        title: 'Open another report?',
-        description:
+        title: t('Open another report?'),
+        description: t(
           'The report on screen has changes that have not been saved. Opening another one discards them.',
-        confirmLabel: 'Discard and open',
-        cancelLabel: 'Stay here',
+        ),
+        confirmLabel: t('Discard and open'),
+        cancelLabel: t('Stay here'),
         onConfirm: () => {
           setConfirm(null)
           openReport(id)
@@ -235,14 +239,16 @@ export default function AskReport() {
     })
 
     if (!stored) {
-      setStatus('This browser would not store the report. Check its site data settings.')
+      setStatus(
+        t('This browser would not store the report. Check its site data settings.'),
+      )
       return
     }
 
     setReport({ id: stored.id, title: stored.title, description: stored.description })
     setSaved(listReports())
     setSavedSignature(reportSignature(stored))
-    setStatus(`Saved "${stored.title}" in this browser.`)
+    setStatus(t('Saved "{title}" in this browser.', { title: stored.title }))
   }
 
   function discard(id) {
@@ -254,7 +260,7 @@ export default function AskReport() {
       // screen is saved.
       setSavedSignature(null)
     }
-    setStatus('The saved copy was deleted. What is on screen is still here.')
+    setStatus(t('The saved copy was deleted. What is on screen is still here.'))
   }
 
   function startOver() {
@@ -268,10 +274,13 @@ export default function AskReport() {
   function requestDelete() {
     const entry = saved.find((item) => item.id === report.id)
     setConfirm({
-      title: 'Delete this saved report?',
-      description: `"${entry?.title || report.title || 'Untitled report'}" will be removed from this browser. The cards stay on screen, but the saved copy cannot be recovered.`,
-      confirmLabel: 'Delete it',
-      cancelLabel: 'Keep it',
+      title: t('Delete this saved report?'),
+      description: t(
+        '"{title}" will be removed from this browser. The cards stay on screen, but the saved copy cannot be recovered.',
+        { title: entry?.title || report.title || t('Untitled report') },
+      ),
+      confirmLabel: t('Delete it'),
+      cancelLabel: t('Keep it'),
       onConfirm: () => {
         setConfirm(null)
         discard(report.id)
@@ -281,12 +290,16 @@ export default function AskReport() {
 
   function requestClear() {
     setConfirm({
-      title: 'Clear this report?',
+      title: t('Clear this report?'),
       description: unsaved
-        ? 'Every card on screen is removed and the title is cleared. These changes have not been saved, so they cannot be brought back.'
-        : 'Every card on screen is removed and the title is cleared. The saved copy stays in this browser and can be opened again.',
-      confirmLabel: 'Clear it',
-      cancelLabel: 'Keep it',
+        ? t(
+            'Every card on screen is removed and the title is cleared. These changes have not been saved, so they cannot be brought back.',
+          )
+        : t(
+            'Every card on screen is removed and the title is cleared. The saved copy stays in this browser and can be opened again.',
+          ),
+      confirmLabel: t('Clear it'),
+      cancelLabel: t('Keep it'),
       onConfirm: () => {
         setConfirm(null)
         startOver()
@@ -296,10 +309,13 @@ export default function AskReport() {
 
   function requestRemoveCard(card) {
     setConfirm({
-      title: 'Remove this card?',
-      description: `"${card.title || 'Untitled card'}" is taken out of the report. The question and its query go with it.`,
-      confirmLabel: 'Remove it',
-      cancelLabel: 'Keep it',
+      title: t('Remove this card?'),
+      description: t(
+        '"{title}" is taken out of the report. The question and its query go with it.',
+        { title: card.title || t('Untitled card') },
+      ),
+      confirmLabel: t('Remove it'),
+      cancelLabel: t('Keep it'),
       onConfirm: () => {
         setConfirm(null)
         setCards((current) => current.filter((entry) => entry.id !== card.id))
@@ -312,11 +328,12 @@ export default function AskReport() {
       {/* 1. The question. Everything else on this screen comes out of it. */}
       <section className="card ask-panel" aria-labelledby="ask-heading">
         <h2 className="section-title" id="ask-heading">
-          Ask your data
+          {t('Ask your data')}
         </h2>
         <p className="section-description">
-          One question at a time, in English. The query is written for you, run
-          against the database read-only, and shown with the SQL behind it.
+          {t(
+            'One question at a time, in English. The query is written for you, run against the database read-only, and shown with the SQL behind it.',
+          )}
         </p>
 
         <form
@@ -327,12 +344,14 @@ export default function AskReport() {
           }}
         >
           <label className="field">
-            <span className="visually-hidden">Ask a question about the data</span>
+            <span className="visually-hidden">
+              {t('Ask a question about the data')}
+            </span>
             <input
               type="text"
               className="ask-input"
               value={question}
-              placeholder="Total investment per year"
+              placeholder={t('Total investment per year')}
               maxLength={500}
               onChange={(event) => setQuestion(event.target.value)}
             />
@@ -345,14 +364,14 @@ export default function AskReport() {
             disabled={asking || question.trim().length < 3}
           >
             <SparkIcon size={15} />
-            {asking ? 'Asking...' : 'Ask'}
+            {asking ? t('Asking...') : t('Ask')}
           </button>
         </form>
 
         {examples?.questions?.length ? (
           <div className="ask-examples">
             <span className="field-label" id="ask-examples-label">
-              Try one of these
+              {t('Try one of these')}
             </span>
             <div className="suggestion-chips" aria-labelledby="ask-examples-label">
               {examples.questions.map((example) => (
@@ -374,8 +393,9 @@ export default function AskReport() {
         ) : null}
 
         <p className="ask-hint">
-          Name a chart in the question - "as a pie chart", "over time" - and the
-          answer is drawn that way when the result supports it.
+          {t(
+            'Name a chart in the question - "as a pie chart", "over time" - and the answer is drawn that way when the result supports it.',
+          )}
         </p>
       </section>
 
@@ -387,11 +407,14 @@ export default function AskReport() {
         <section className="preview-section" aria-labelledby="preview-heading">
           <div className="section-head">
             <h2 className="section-title" id="preview-heading">
-              Result preview
+              {t('Result preview')}
             </h2>
           </div>
           <div className="card">
-            <StateBlock variant="loading" title="Writing the query and running it" />
+            <StateBlock
+              variant="loading"
+              title={t('Writing the query and running it')}
+            />
           </div>
         </section>
       ) : pending ? (
@@ -399,15 +422,15 @@ export default function AskReport() {
           <div className="section-head">
             <div>
               <h2 className="section-title" id="preview-heading">
-                Result preview
+                {t('Result preview')}
               </h2>
               <p className="section-description">
-                Not part of the report yet - keep it, or ask something else.
+                {t('Not part of the report yet - keep it, or ask something else.')}
               </p>
             </div>
             <span className="badge badge-on-hold">
               <span className="badge-dot" aria-hidden="true" />
-              Not added
+              {t('Not added')}
             </span>
           </div>
           <QueryResultCard
@@ -421,7 +444,7 @@ export default function AskReport() {
                 onClick={addPending}
               >
                 <PlusIcon size={15} />
-                Add to report
+                {t('Add to report')}
               </button>
             }
           />
@@ -431,26 +454,26 @@ export default function AskReport() {
       {/* 3. The report itself: a document with a title, not a list of answers. */}
       <section className="report-builder" aria-labelledby="builder-heading">
         <h2 className="visually-hidden" id="builder-heading">
-          Report builder
+          {t('Report builder')}
         </h2>
 
         <header className="builder-head">
           <div className="builder-titles">
-            <span className="builder-eyebrow">Report</span>
+            <span className="builder-eyebrow">{t('Report')}</span>
             <input
               className="builder-title-input"
               value={report.title}
-              placeholder="Untitled report"
+              placeholder={t('Untitled report')}
               maxLength={120}
-              aria-label="Report title"
+              aria-label={t('Report title')}
               onChange={(event) => setReport({ ...report, title: event.target.value })}
             />
             <input
               className="builder-description-input"
               value={report.description}
-              placeholder="What this report is for"
+              placeholder={t('What this report is for')}
               maxLength={240}
-              aria-label="Report description"
+              aria-label={t('Report description')}
               onChange={(event) =>
                 setReport({ ...report, description: event.target.value })
               }
@@ -463,7 +486,7 @@ export default function AskReport() {
               role="status"
             >
               <span className="badge-dot" aria-hidden="true" />
-              {unsaved ? 'Unsaved changes' : 'Saved in this browser'}
+              {unsaved ? t('Unsaved changes') : t('Saved in this browser')}
             </span>
           ) : null}
         </header>
@@ -475,12 +498,12 @@ export default function AskReport() {
           <div className="builder-toolbar-group">
             {saved.length > 0 ? (
               <label className="field">
-                <span className="field-label">Open a saved report</span>
+                <span className="field-label">{t('Open a saved report')}</span>
                 <select
                   value={report.id || ''}
                   onChange={(event) => requestOpen(event.target.value)}
                 >
-                  <option value="">Select...</option>
+                  <option value="">{t('Select...')}</option>
                   {saved.map((entry) => (
                     <option key={entry.id} value={entry.id}>
                       {entry.title} ({entry.cards.length})
@@ -499,7 +522,7 @@ export default function AskReport() {
               onClick={refreshAll}
             >
               <RefreshIcon size={15} />
-              Refresh
+              {t('Refresh')}
             </button>
             <button
               type="button"
@@ -508,7 +531,7 @@ export default function AskReport() {
               onClick={() => persist(false)}
             >
               <SaveIcon size={15} />
-              {report.id ? 'Save' : 'Save report'}
+              {report.id ? t('Save') : t('Save report')}
             </button>
             {report.id ? (
               <button
@@ -517,7 +540,7 @@ export default function AskReport() {
                 disabled={!canStore}
                 onClick={() => persist(true)}
               >
-                Save as new
+                {t('Save as new')}
               </button>
             ) : null}
 
@@ -528,12 +551,12 @@ export default function AskReport() {
             {report.id ? (
               <button type="button" className="button button-danger" onClick={requestDelete}>
                 <TrashIcon size={15} />
-                Delete
+                {t('Delete')}
               </button>
             ) : null}
             {hasCards ? (
               <button type="button" className="button button-danger" onClick={requestClear}>
-                Clear
+                {t('Clear')}
               </button>
             ) : null}
           </div>
@@ -545,21 +568,25 @@ export default function AskReport() {
 
         {!canStore ? (
           <p className="builder-note">
-            This browser is not storing site data, so a report can be built and
-            printed but not saved.
+            {t(
+              'This browser is not storing site data, so a report can be built and printed but not saved.',
+            )}
           </p>
         ) : (
           <p className="builder-note">
-            Saved reports live in this browser only. Each card keeps its query,
-            not its rows, so opening one shows the figures as they are today.
+            {t(
+              'Saved reports live in this browser only. Each card keeps its query, not its rows, so opening one shows the figures as they are today.',
+            )}
           </p>
         )}
 
         {cards.length === 0 ? (
           <div className="card">
             <StateBlock
-              title="No cards yet"
-              text="Ask a question above, then keep the answers worth keeping - they become a report you can name, save and print."
+              title={t('No cards yet')}
+              text={t(
+                'Ask a question above, then keep the answers worth keeping - they become a report you can name, save and print.',
+              )}
             />
           </div>
         ) : (
@@ -576,7 +603,7 @@ export default function AskReport() {
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label={`Move "${card.title}" up`}
+                      aria-label={t('Move "{title}" up', { title: card.title })}
                       disabled={index === 0}
                       onClick={() => moveCard(card.id, -1)}
                     >
@@ -585,7 +612,7 @@ export default function AskReport() {
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label={`Move "${card.title}" down`}
+                      aria-label={t('Move "{title}" down', { title: card.title })}
                       disabled={index === cards.length - 1}
                       onClick={() => moveCard(card.id, 1)}
                     >
@@ -598,14 +625,14 @@ export default function AskReport() {
                       onClick={() => runCard(card)}
                     >
                       <RefreshIcon size={14} />
-                      {card.loading ? 'Running...' : 'Refresh'}
+                      {card.loading ? t('Running...') : t('Refresh')}
                     </button>
                     <button
                       type="button"
                       className="button button-sm button-danger"
                       onClick={() => requestRemoveCard(card)}
                     >
-                      Remove
+                      {t('Remove')}
                     </button>
                   </>
                 }

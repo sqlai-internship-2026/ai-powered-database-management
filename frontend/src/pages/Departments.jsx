@@ -3,6 +3,7 @@ import PageHeader from '../components/PageHeader'
 import DataTable from '../components/DataTable'
 import SummaryStrip from '../components/SummaryStrip'
 import { useApiData } from '../utils/api'
+import { useT } from '../i18n'
 import { formatNumber } from '../utils/format'
 
 // A department is a name and what it is for, so those two are one column with
@@ -35,6 +36,7 @@ const columns = [
 
 export default function Departments() {
   const { data: departments, loading, error } = useApiData('/api/departments', [])
+  const t = useT()
 
   // Counted from the rows on the screen rather than asked of a second
   // endpoint, so the totals can never disagree with the table under them.
@@ -49,16 +51,18 @@ export default function Departments() {
   return (
     <>
       <PageHeader
-        eyebrow="Management data"
-        title="Departments"
-        description="Organizational units, what each one is responsible for and how many people it holds."
+        eyebrow={t('Management data')}
+        title={t('Departments')}
+        description={t(
+          'Organizational units, what each one is responsible for and how many people it holds.',
+        )}
       />
 
       {!loading && !error ? (
         <SummaryStrip
           items={[
-            { label: 'Departments', value: formatNumber(totals.departments) },
-            { label: 'Employees assigned', value: formatNumber(totals.employees) },
+            { label: t('Departments'), value: formatNumber(totals.departments) },
+            { label: t('Employees assigned'), value: formatNumber(totals.employees) },
           ]}
         />
       ) : null}

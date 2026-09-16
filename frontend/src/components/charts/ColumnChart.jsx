@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../../i18n'
 
 // Columns over time for one series. Built from flex boxes rather than a scaled
 // SVG so the labels never stretch, and the wrapper reserves a band under the
@@ -18,12 +19,17 @@ export default function ColumnChart({
   data,
   formatValue = (value) => value,
   formatTick,
-  emptyMessage = 'Nothing to chart for this selection.',
+  emptyMessage,
 }) {
+  const t = useT()
   const [hovered, setHovered] = useState(null)
 
   if (!data || data.length === 0) {
-    return <p className="chart-empty">{emptyMessage}</p>
+    return (
+      <p className="chart-empty">
+        {emptyMessage || t('Nothing to chart for this selection.')}
+      </p>
+    )
   }
 
   const max = Math.max(...data.map((row) => row.value || 0), 0)
