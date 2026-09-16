@@ -209,10 +209,16 @@ export default function FinancialReport() {
                   <td className="align-right">{formatCurrency(project.invested)}</td>
                   <td className="align-right">{formatCurrency(project.remaining)}</td>
                   <td className="meter-column">
+                    {/* "Over budget" is the backend's own verdict rather than
+                        something read back out of the percentage: a zero budget
+                        has no percentage, and the tile above would then count a
+                        program whose own row said nothing. "Near limit" is a
+                        question about the percentage, so it stays one. */}
                     <Meter
                       percent={project.utilization}
+                      state={project.over_budget ? 'critical' : undefined}
                       note={
-                        meterState(project.utilization) === 'critical'
+                        project.over_budget
                           ? 'Over budget'
                           : meterState(project.utilization) === 'warning'
                             ? 'Near limit'
