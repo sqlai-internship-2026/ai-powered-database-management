@@ -718,7 +718,7 @@ stored in the repository. Create a test user after the first start:
 4. Open the **Credentials** tab -> **Set password**.
    - Choose any password, set **Temporary** to **Off**, then **Save**.
 5. Open the **Role mapping** tab -> **Assign role**, switch the filter to realm
-   roles and give the account one of `ADMIN`, `DBA`, `ANALYST` or `VIEWER`.
+   roles and give the account one of `ADMIN`, `ANALYST` or `VIEWER`.
    Without one the account signs in but every data request answers `403` - see
    [Roles and permissions](#roles-and-permissions).
 
@@ -775,14 +775,14 @@ console under **Users** -> the account -> **Role mapping**. The application has
 no screen for managing them: it reads them from the `realm_access.roles` claim
 of the access token and applies them.
 
-| Area | Endpoints | VIEWER | ANALYST | DBA | ADMIN |
-| --- | --- | :---: | :---: | :---: | :---: |
-| Dashboard, lists, project detail, fixed reports | `/api/dashboard`, `/api/departments`, `/api/employees`, `/api/projects`, `/api/projects/{id}`, `/api/products`, `/api/investments`, `/api/reports/filters`, `/api/reports/financial`, `/api/reports/workforce`, `/api/reports/portfolio` | Yes | Yes | Yes | Yes |
-| Assistant and dynamic reports | `/api/reports/ask/examples`, `/api/reports/ask`, `/api/reports/run` | No | Yes | Yes | Yes |
-| Schema Audit | `/api/schema-audit`, `/api/schema-audit/rules` | No | No | Yes | Yes |
-| Schema Audit explanations | `/api/schema-audit/explain` | No | No | Yes | Yes |
+| Area | Endpoints | VIEWER | ANALYST | ADMIN |
+| --- | --- | :---: | :---: | :---: |
+| Dashboard, lists, project detail, fixed reports | `/api/dashboard`, `/api/departments`, `/api/employees`, `/api/projects`, `/api/projects/{id}`, `/api/products`, `/api/investments`, `/api/reports/filters`, `/api/reports/financial`, `/api/reports/workforce`, `/api/reports/portfolio` | Yes | Yes | Yes |
+| Assistant and dynamic reports | `/api/reports/ask/examples`, `/api/reports/ask`, `/api/reports/run` | No | Yes | Yes |
+| Schema Audit | `/api/schema-audit`, `/api/schema-audit/rules` | No | No | Yes |
+| Schema Audit explanations | `/api/schema-audit/explain` | No | No | Yes |
 
-- The realm export carries the four roles, so a fresh import creates them. On a
+- The realm export carries the three roles, so a fresh import creates them. On a
   realm imported before they existed, add them once under **Realm roles** -
   re-importing would take the accounts with it. Either way, assigning a role to
   an account is a manual step; no account gets one automatically. Names are
@@ -798,7 +798,7 @@ of the access token and applies them.
 
 - A role reaches the application through a new token, so sign out and back in
   after assigning one.
-- An account with none of the four roles is allowed nothing: every data
+- An account with none of the three roles is allowed nothing: every data
   endpoint answers `403` and the screens say that a role has to be assigned.
   That includes accounts created before these roles existed.
 - `401` means the request did not prove who is calling - no token, or an

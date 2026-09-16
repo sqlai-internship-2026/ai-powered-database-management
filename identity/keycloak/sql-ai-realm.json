@@ -59,11 +59,7 @@
       },
       {
         "name": "ADMIN",
-        "description": "Everything, including Schema Audit and its explanations."
-      },
-      {
-        "name": "DBA",
-        "description": "Schema Audit, the assistant and dynamic reports, plus everything a viewer sees."
+        "description": "Everything: Schema Audit and its explanations, the assistant and dynamic reports, plus everything a viewer sees."
       },
       {
         "name": "ANALYST",

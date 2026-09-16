@@ -6,26 +6,25 @@
 // whatever the browser shows, and that check is the control.
 //
 // Roles are Keycloak realm roles, read from the access token. Anything that is
-// not one of the four grants nothing, and an unknown permission name is refused
+// not one of the three grants nothing, and an unknown permission name is refused
 // rather than allowed.
 
 // Most privileged first, so the first one an account holds is its effective role.
-export const APP_ROLES = ['ADMIN', 'DBA', 'ANALYST', 'VIEWER']
+export const APP_ROLES = ['ADMIN', 'ANALYST', 'VIEWER']
 
 export const PERMISSIONS = {
   // Dashboard, the lists, project detail and the fixed reports.
-  read: ['VIEWER', 'ANALYST', 'DBA', 'ADMIN'],
+  read: ['VIEWER', 'ANALYST', 'ADMIN'],
   // The Assistant and dynamic reports.
-  ai: ['ANALYST', 'DBA', 'ADMIN'],
+  ai: ['ANALYST', 'ADMIN'],
   // The structural review of the live schema.
-  schema_audit: ['DBA', 'ADMIN'],
+  schema_audit: ['ADMIN'],
   // A finding explained by a model.
-  schema_audit_explain: ['DBA', 'ADMIN'],
+  schema_audit_explain: ['ADMIN'],
 }
 
 const ROLE_LABELS = {
   ADMIN: 'Admin',
-  DBA: 'DBA',
   ANALYST: 'Analyst',
   VIEWER: 'Viewer',
 }
