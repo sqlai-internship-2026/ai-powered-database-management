@@ -35,11 +35,11 @@ def project(project_id, budget, invested):
 
 
 @pytest.fixture
-def summary_of(monkeypatch):
-    """The report summary for a given list of project rows.
+def report_of(monkeypatch):
+    """The whole report for a given list of project rows.
 
     The report asks fetch_all three times: projects, then the yearly trend,
-    then the split by type. Only the first matters to the summary.
+    then the split by type. Only the first carries anything these tests read.
     """
 
     def use(projects):
@@ -50,7 +50,17 @@ def summary_of(monkeypatch):
             return projects if len(calls) == 1 else []
 
         monkeypatch.setattr(queries, "fetch_all", fake_fetch_all)
-        return financial_report()["summary"]
+        return financial_report()
+
+    return use
+
+
+@pytest.fixture
+def summary_of(report_of):
+    """Just the summary, for the tests that only ask what it counted."""
+
+    def use(projects):
+        return report_of(projects)["summary"]
 
     return use
 
@@ -85,6 +95,35 @@ def test_the_summary_counts_each_case_by_the_same_rule(summary_of):
         project(4, 100.0, 60.0),  # within budget: not counted
     ]
     assert summary_of(rows)["over_budget_count"] == 2
+
+
+def test_every_row_carries_the_verdict_the_summary_counted(report_of):
+    # The table's "Over budget" note reads this field. It used to be worked out
+    # again in the browser from utilization, which is a different rule.
+    rows = [
+        project(1, None, 5000.0),  # unknown budget: not over
+        project(2, 0.0, 250.0),  # zero budget, spent: over
+        project(3, 100.0, 120.0),  # overspent: over
+        project(4, 100.0, 60.0),  # within budget: not over
+    ]
+    report = report_of(rows)
+
+    assert [row["over_budget"] for row in report["projects"]] == [
+        False,
+        True,
+        True,
+        False,
+    ]
+    assert report["summary"]["over_budget_count"] == 2
+
+
+def test_a_zero_budget_row_is_flagged_although_it_has_no_utilization(report_of):
+    # The case the two rules disagreed on, and the reason the field exists: the
+    # tile counted this project while its own row showed a dash and no note.
+    row = report_of([project(1, 0.0, 250.0)])["projects"][0]
+
+    assert row["utilization"] is None
+    assert row["over_budget"] is True
 
 
 @pytest.mark.parametrize(

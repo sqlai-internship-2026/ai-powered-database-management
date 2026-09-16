@@ -137,11 +137,16 @@ def financial_report(year_from=None, year_to=None, statuses=None):
         type_params,
     )
 
+    # Decided once, per row, and carried in the payload. The table used to work
+    # it out again from utilization, which SQL leaves null when the budget is
+    # zero - so a project this summary counted as overspent carried no note at
+    # all in its own row, and a reader who trusted the tile could not find it.
+    # One field, read by the tile and by the row, cannot disagree with itself.
+    for row in projects:
+        row["over_budget"] = is_over_budget(row["budget"], row["invested"])
+
     total_budget = sum(row["budget"] or 0 for row in projects)
     total_invested = sum(row["invested"] for row in projects)
-    over_budget = [
-        row for row in projects if is_over_budget(row["budget"], row["invested"])
-    ]
 
     summary = {
         "project_count": len(projects),
@@ -149,7 +154,7 @@ def financial_report(year_from=None, year_to=None, statuses=None):
         "total_invested": total_invested,
         "total_remaining": total_budget - total_invested,
         "utilization": round(total_invested / total_budget * 100, 1) if total_budget else None,
-        "over_budget_count": len(over_budget),
+        "over_budget_count": sum(1 for row in projects if row["over_budget"]),
         "investment_count": sum(row["investment_count"] for row in projects),
     }
 
