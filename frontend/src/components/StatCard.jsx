@@ -6,6 +6,15 @@
 // emphasis, which is what lets the four figures a programme review opens with
 // be visibly larger than the three counts underneath them. Neither changes
 // anything for a caller that leaves them out.
+//
+// tone is the state the figure is in, and it is spent carefully: an edge in
+// the state's ink and the number in it, on the cards that earned it. A row
+// where every card is coloured says nothing, so "primary" and "neutral" stay
+// plain and only warning, danger, success and info take a colour.
+//
+// onClick turns the card into a filter for whatever it counts. It becomes a
+// real button then - reachable by keyboard, and announcing through aria-pressed
+// whether its filter is the one currently applied.
 export default function StatCard({
   label,
   value,
@@ -14,12 +23,19 @@ export default function StatCard({
   tone = 'neutral',
   emphasis = false,
   children = null,
+  onClick = null,
+  active = false,
 }) {
-  const className = emphasis ? 'card stat-card stat-card-lead' : 'card stat-card'
+  const classes = ['card', 'stat-card']
+  if (emphasis) classes.push('stat-card-lead')
+  if (tone !== 'neutral') classes.push(`stat-card-${tone}`)
+  if (onClick) classes.push('stat-card-action')
+  if (active) classes.push('is-on')
+
   const iconClass = tone === 'neutral' ? 'stat-icon' : `stat-icon stat-icon-${tone}`
 
-  return (
-    <div className={className}>
+  const body = (
+    <>
       <div className="stat-head">
         <div className="stat-label">{label}</div>
         {icon ? (
@@ -31,6 +47,21 @@ export default function StatCard({
       <div className="stat-value">{value}</div>
       {hint ? <div className="stat-hint">{hint}</div> : null}
       {children}
-    </div>
+    </>
   )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className={classes.join(' ')}
+        onClick={onClick}
+        aria-pressed={active}
+      >
+        {body}
+      </button>
+    )
+  }
+
+  return <div className={classes.join(' ')}>{body}</div>
 }

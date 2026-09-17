@@ -209,7 +209,6 @@ export default function Dashboard() {
           />
           <StatCard
             emphasis
-            tone="primary"
             icon={<InvestmentsIcon size={18} />}
             label={t('Total Investments')}
             value={formatCompactCurrency(stats?.total_investment_amount)}
@@ -227,7 +226,13 @@ export default function Dashboard() {
           />
           <StatCard
             emphasis
-            tone={utilization !== null && utilization > 100 ? 'warning' : 'primary'}
+            tone={
+              utilizationTone === ' is-critical'
+                ? 'danger'
+                : utilizationTone === ' is-warning'
+                  ? 'warning'
+                  : 'primary'
+            }
             icon={<GaugeIcon size={18} />}
             label={t('Budget Utilization')}
             value={utilization === null ? '-' : formatPercent(utilization)}

@@ -161,14 +161,14 @@ export default function PortfolioReport() {
           value={formatNumber(summary.ending_soon_count)}
           hint={t('Active programs closing in 12 months')}
           icon={<ClockIcon size={17} />}
-          tone={summary.ending_soon_count > 0 ? 'warning' : 'neutral'}
+          tone={summary.ending_soon_count > 0 ? 'warning' : 'success'}
         />
         <StatCard
           label={t('Past End Date')}
           value={formatNumber(summary.overdue_count)}
           hint={t('Still Active or On Hold')}
           icon={<AlertIcon size={17} />}
-          tone={summary.overdue_count > 0 ? 'danger' : 'neutral'}
+          tone={summary.overdue_count > 0 ? 'danger' : 'success'}
         />
       </div>
 
