@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import PageHeader from '../components/PageHeader'
 import { CloseIcon, PrinterIcon, SparkIcon } from '../components/icons'
+import { statusModifier } from '../components/StatusBadge'
 import { useApiData } from '../utils/api'
 import { useT } from '../i18n'
 
@@ -220,14 +221,25 @@ export default function Reports() {
                 <div className="filter-chips" aria-labelledby="report-status-label">
                   {(options?.statuses || []).map((entry) => {
                     const on = filters.statuses.includes(entry.status)
+                    const modifier = statusModifier[entry.status]
                     return (
                       <button
                         key={entry.status}
                         type="button"
-                        className={on ? 'filter-chip is-on' : 'filter-chip'}
+                        className={[
+                          'filter-chip',
+                          modifier ? `filter-chip-${modifier}` : '',
+                          on ? 'is-on' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
                         aria-pressed={on}
                         onClick={() => toggleStatus(entry.status)}
                       >
+                        {/* The same dot the badge carries, so the four chips
+                            are recognisable as the four statuses before any
+                            of them is read. */}
+                        <span className="filter-chip-dot" aria-hidden="true" />
                         {t(entry.status)}
                         <span className="filter-chip-count">{entry.count}</span>
                       </button>

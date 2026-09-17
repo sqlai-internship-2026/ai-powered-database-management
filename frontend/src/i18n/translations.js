@@ -610,9 +610,15 @@ const tr = {
   Info: 'Bilgi',
   'Consistency and documentation': 'Tutarlılık ve dokümantasyon',
   Severity: 'Önem derecesi',
-  All: 'Tümü',
+  'Findings by table': 'Tabloya göre bulgular',
+  'A finding can concern more than one table - a loop, or a column declared two ways - so these add up to more than the total.':
+    'Bir bulgu birden fazla tabloyu ilgilendirebilir - bir döngü ya da iki farklı biçimde tanımlanmış bir sütun - bu yüzden bu sayıların toplamı bulgu sayısından fazla çıkar.',
+  'No finding names a table.': 'Hiçbir bulgu bir tablo adı taşımıyor.',
+  'No finding in this selection names a table.':
+    'Bu seçimde tablo adı taşıyan bir bulgu yok.',
   'Search findings': 'Bulgularda ara',
-  'Rule, table, column or message': 'Kural, tablo, sütun veya mesaj',
+  'Rule, table, column, severity or message':
+    'Kural, tablo, sütun, önem derecesi veya mesaj',
   '{shown} of {total} findings': '{total} bulgudan {shown} tanesi',
   '{count} findings': '{count} bulgu',
   'Show rules': 'Kuralları göster',
@@ -626,11 +632,26 @@ const tr = {
   'Checks for': 'Neye bakar',
   'No findings match': 'Eşleşen bulgu yok',
   'Nothing to report': 'Bildirilecek bir şey yok',
-  'Nothing at this severity matches the current search.':
-    'Bu önem derecesinde mevcut aramayla eşleşen bir şey yok.',
+  'Nothing matches what is selected.': 'Seçili olanla eşleşen bir şey yok.',
+  'Clear the filter': 'Filtreyi temizle',
   'The audit ran and found nothing against these rules.':
     'Denetim çalıştı ve bu kurallara aykırı bir şey bulmadı.',
   'Generated at {timestamp}': '{timestamp} tarihinde oluşturuldu',
+  // The heading a finding card carries. Written for someone reading the page
+  // rather than someone reading the rule set; the technical name stays in the
+  // rule catalog and inside the opened card.
+  'No primary key': 'Birincil anahtar yok',
+  'Delete rule not set': 'Silme kuralı belirsiz',
+  'Update rule not set': 'Güncelleme kuralı belirsiz',
+  'Table stands alone': 'Bağlantısız tablo',
+  'Tables reference in a loop': 'Döngüsel tablo bağlantısı',
+  'Repeated index': 'Tekrarlayan indeks',
+  'Index already covered': 'İndeks zaten kapsanıyor',
+  'Linked columns differ in type': 'Bağlantı tipi uyuşmuyor',
+  'Link has no index': 'İndekssiz bağlantı',
+  'Link is not enforced': 'Korumasız bağlantı',
+  'Same name, different types': 'Aynı ad, farklı tip',
+
   Heuristic: 'Sezgisel',
   '{count} fix': '{count} düzeltme',
   '{count} fixes': '{count} düzeltme',

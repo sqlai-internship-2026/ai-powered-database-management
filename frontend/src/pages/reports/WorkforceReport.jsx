@@ -99,13 +99,13 @@ export default function WorkforceReport() {
     <ReportBody loading={loading}>
       <div className="stat-grid">
         <StatCard
+          tone="primary"
           label={t('Headcount')}
           value={formatNumber(summary.headcount)}
           hint={t('{count} staffed departments', {
             count: formatNumber(summary.department_count),
           })}
           icon={<EmployeesIcon size={17} />}
-          tone="primary"
         />
         <StatCard
           label={t('Annual Payroll')}
@@ -131,7 +131,7 @@ export default function WorkforceReport() {
           value={formatNumber(summary.unassigned_count)}
           hint={t('No project assignment')}
           icon={<InboxIcon size={17} />}
-          tone={summary.unassigned_count > 0 ? 'warning' : 'neutral'}
+          tone={summary.unassigned_count > 0 ? 'warning' : 'success'}
         />
       </div>
 

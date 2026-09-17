@@ -109,6 +109,15 @@ export default function FinancialReport() {
 
   const { summary, projects, trend, by_type: byType } = data
 
+  // The same thresholds the meters in the table below use, so the headline
+  // figure and the bars under it never disagree about where the budget stands.
+  const utilizationTone = {
+    critical: 'danger',
+    warning: 'warning',
+    normal: 'success',
+    unknown: 'neutral',
+  }[meterState(summary.utilization)]
+
   return (
     <ReportBody loading={loading}>
       <div className="stat-grid">
@@ -134,6 +143,7 @@ export default function FinancialReport() {
           value={formatPercent(summary.utilization)}
           hint={t('Committed against total budget')}
           icon={<GaugeIcon size={17} />}
+          tone={utilizationTone}
         />
         <StatCard
           label={t('Uncommitted')}
@@ -146,7 +156,7 @@ export default function FinancialReport() {
           value={formatNumber(summary.over_budget_count)}
           hint={t('Programs past 100% utilization')}
           icon={<AlertIcon size={17} />}
-          tone={summary.over_budget_count > 0 ? 'danger' : 'neutral'}
+          tone={summary.over_budget_count > 0 ? 'danger' : 'success'}
         />
       </div>
 

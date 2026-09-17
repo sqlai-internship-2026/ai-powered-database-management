@@ -1,10 +1,14 @@
 import { useT } from '../i18n'
 
-const badgeClasses = {
-  Active: 'badge badge-active',
-  Planning: 'badge badge-planning',
-  Completed: 'badge badge-completed',
-  'On Hold': 'badge badge-on-hold',
+// The stored value, and the modifier every control that shows that status
+// uses. Exported because the report filter chips are the same four statuses
+// and have to be the same four colours - a chip in one green and a badge in
+// another would read as two different things.
+export const statusModifier = {
+  Active: 'active',
+  Planning: 'planning',
+  Completed: 'completed',
+  'On Hold': 'on-hold',
 }
 
 // The dot repeats the status the word already gives; it is there to be picked
@@ -15,7 +19,11 @@ export default function StatusBadge({ status }) {
   const t = useT()
 
   return (
-    <span className={badgeClasses[status] || 'badge'}>
+    <span
+      className={
+        statusModifier[status] ? `badge badge-${statusModifier[status]}` : 'badge'
+      }
+    >
       <span className="badge-dot" aria-hidden="true" />
       {t(status)}
     </span>

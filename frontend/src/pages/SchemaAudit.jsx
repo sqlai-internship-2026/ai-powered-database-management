@@ -12,16 +12,60 @@ import {
   SearchIcon,
   SparkIcon,
 } from '../components/icons'
+import ColumnChart from '../components/charts/ColumnChart'
 import { apiPost, useApiData } from '../utils/api'
 import { useT } from '../i18n'
 import { formatDateTime, formatNumber } from '../utils/format'
 
-const severityFilters = [
-  { key: 'all', label: 'All' },
-  { key: 'error', label: 'Errors' },
-  { key: 'warning', label: 'Warnings' },
-  { key: 'info', label: 'Info' },
-]
+// A rule is named for what it checks, which is the right name in the catalog
+// and the wrong one on a card: "Undefined ON DELETE behaviour" describes a
+// clause, not a problem. The card gets a heading someone can read without
+// knowing the rule, and the catalog keeps the technical name beside it.
+//
+// Keyed by rule name rather than rule id, because R006 reports two different
+// things under two names. A name with no entry falls through to itself, so
+// adding a rule cannot leave a card without a heading.
+const friendlyTitles = {
+  'Missing primary key': 'No primary key',
+  'Undefined ON DELETE behaviour': 'Delete rule not set',
+  'Undefined ON UPDATE behaviour': 'Update rule not set',
+  'Isolated table': 'Table stands alone',
+  'Circular foreign key chain': 'Tables reference in a loop',
+  'Duplicate index': 'Repeated index',
+  'Redundant index prefix': 'Index already covered',
+  'Foreign key type mismatch': 'Linked columns differ in type',
+  'Unindexed foreign key': 'Link has no index',
+  'Implied relationship without a foreign key': 'Link is not enforced',
+  'Inconsistent type for a shared column name': 'Same name, different types',
+}
+
+function friendlyTitle(ruleName) {
+  return friendlyTitles[ruleName] || ruleName
+}
+
+const severities = ['error', 'warning', 'info']
+
+// How many findings touch each table. A finding can name more than one - a
+// loop belongs to every table in it, and a column declared two ways belongs to
+// both - so these counts sum to more than the number of findings. That is the
+// question being asked: how much of this report is about this table.
+function tableBreakdown(findings) {
+  const byTable = new Map()
+  for (const finding of findings) {
+    for (const table of finding.tables || []) {
+      let row = byTable.get(table)
+      if (!row) {
+        row = { table, total: 0, error: 0, warning: 0, info: 0 }
+        byTable.set(table, row)
+      }
+      row.total += 1
+      row[finding.severity] += 1
+    }
+  }
+  return [...byTable.values()].sort(
+    (a, b) => b.error - a.error || b.total - a.total || a.table.localeCompare(b.table),
+  )
+}
 
 // Rules write relationships the way the catalog does. An arrow reads as one on
 // screen; the two characters read as code.
@@ -156,9 +200,11 @@ function Explanation({ state, onRetry }) {
 }
 
 // Closed, a finding is one line: what kind of problem it is and where. The
-// rule name is the heading because it is the only part written for a person -
-// the message names the constraint and the clause, which is the detail you
-// want once you have decided to look, not the thing you scan thirteen of.
+// heading is the plain-language name of the problem because it is the only
+// part written for a person - the message names the constraint and the clause,
+// which is the detail you want once you have decided to look, not the thing
+// you scan thirteen of. The rule that produced it is printed inside, next to
+// its id.
 function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
   const t = useT()
   const fixes = finding.remediations
@@ -181,7 +227,9 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
         </span>
 
         <span className="finding-head-text">
-          <span className="finding-title">{finding.rule_name}</span>
+          <span className="finding-title">
+            {t(friendlyTitle(finding.rule_name))}
+          </span>
           <span className="finding-where">
             <code className="finding-target">{finding.target}</code>
             <span className="finding-message">{readable(finding.message)}</span>
@@ -206,7 +254,7 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
       {expanded ? (
         <div className="finding-body">
           <p className="finding-object">
-            {finding.rule_id} · <code>{finding.target}</code>
+            {finding.rule_id} · {finding.rule_name} · <code>{finding.target}</code>
           </p>
 
           <div className="finding-columns">
@@ -259,7 +307,10 @@ function FindingCard({ finding, explanation, expanded, onToggle, onRetry }) {
   )
 }
 
-function RuleCatalog({ onClose }) {
+// One button opens and closes this, and it is the one that sits directly above
+// the catalog. A second copy inside the panel was a second thing to find for
+// something the reader had just pressed.
+function RuleCatalog() {
   const t = useT()
   const { data: rules, loading, error } = useApiData('/api/schema-audit/rules', [])
 
@@ -274,9 +325,6 @@ function RuleCatalog({ onClose }) {
             {t('Every check the audit runs, and what each one looks for.')}
           </p>
         </div>
-        <button type="button" className="button button-sm" onClick={onClose}>
-          {t('Hide rules')}
-        </button>
       </div>
 
       {loading ? (
@@ -333,32 +381,55 @@ function findingKey(finding) {
 export default function SchemaAudit() {
   const t = useT()
   const { data: report, loading, error } = useApiData('/api/schema-audit')
+  // Set by pressing one of the four cards at the top. They were already the
+  // place the counts are read; pressing the one you just read is a shorter way
+  // to see what it counted than finding a control that repeats the number.
   const [severity, setSeverity] = useState('all')
   const [search, setSearch] = useState('')
   const [showRules, setShowRules] = useState(false)
   const [open, setOpen] = useState({})
   // Held by the page rather than by each card, so closing a finding and
   // opening it again does not throw away a paragraph that took ten seconds to
-  // arrive, and neither does switching the severity filter.
+  // arrive, and neither does narrowing the search.
   const [explanations, setExplanations] = useState({})
 
   // Over the findings already on the page. The audit is one request that reads
   // the whole catalog; narrowing it is a question about what is on screen, not
   // a reason to run it again.
+  //
+  // Severity is part of the search rather than a row of chips: the four counts
+  // are already in the cards above, and typing "error" is the one thing the
+  // chips did that nothing else here does. It matches the translated word too,
+  // because that is the one printed on the badge.
   const findings = useMemo(() => {
     const all = report?.findings || []
     const term = search.trim().toLowerCase()
     return all.filter((finding) => {
       if (severity !== 'all' && finding.severity !== severity) return false
       if (!term) return true
-      return (
-        finding.rule_name.toLowerCase().includes(term) ||
-        finding.target.toLowerCase().includes(term) ||
-        finding.message.toLowerCase().includes(term) ||
-        finding.rule_id.toLowerCase().includes(term)
-      )
+      return [
+        finding.rule_name,
+        t(friendlyTitle(finding.rule_name)),
+        finding.target,
+        finding.message,
+        finding.rule_id,
+        finding.severity,
+        t(finding.severity),
+        ...(finding.tables || []),
+      ].some((field) => String(field).toLowerCase().includes(term))
     })
-  }, [report, severity, search])
+  }, [report, severity, search, t])
+
+  // Over the same set the list below shows, so everything on the screen is
+  // describing one thing. Narrowing to errors and reading a breakdown of all
+  // thirteen findings would be two answers to one question.
+  const breakdown = useMemo(() => tableBreakdown(findings), [findings])
+
+  // Pressing the card that is already applied clears it, so the filter can
+  // always be undone at the place it was set.
+  function pickSeverity(key) {
+    setSeverity((current) => (current === key ? 'all' : key))
+  }
 
   function setExplanation(key, state) {
     setExplanations((current) => ({ ...current, [key]: state }))
@@ -454,6 +525,9 @@ export default function SchemaAudit() {
         </span>
       </p>
 
+      {/* Also the filter. The colours are the severities' own - the same three
+          the badges use further down - so the row reads as a key to the list
+          as well as a count of it. */}
       <div className="stat-grid audit-summary">
         <StatCard
           label={t('Findings')}
@@ -466,86 +540,55 @@ export default function SchemaAudit() {
           icon={<SchemaIcon size={17} />}
           tone="primary"
           emphasis
+          onClick={() => setSeverity('all')}
+          active={severity === 'all'}
         />
         <StatCard
           label={t('Errors')}
           value={formatNumber(report.summary.error)}
           hint={t('Break integrity or block work')}
           icon={<AlertIcon size={17} />}
-          tone={report.summary.error > 0 ? 'danger' : 'neutral'}
+          tone="danger"
+          onClick={() => pickSeverity('error')}
+          active={severity === 'error'}
         />
         <StatCard
           label={t('Warnings')}
           value={formatNumber(report.summary.warning)}
           hint={t('Worth fixing deliberately')}
           icon={<AlertIcon size={17} />}
-          tone={report.summary.warning > 0 ? 'warning' : 'neutral'}
+          tone="warning"
+          onClick={() => pickSeverity('warning')}
+          active={severity === 'warning'}
         />
         <StatCard
           label={t('Info')}
           value={formatNumber(report.summary.info)}
           hint={t('Consistency and documentation')}
           icon={<InfoIcon size={17} />}
+          tone="info"
+          onClick={() => pickSeverity('info')}
+          active={severity === 'info'}
         />
       </div>
 
-      <div className="audit-toolbar">
-        <div className="audit-toolbar-controls">
-          <div className="field">
-            <span className="field-label" id="audit-severity-label">
-              {t('Severity')}
-            </span>
-            <div className="filter-chips" aria-labelledby="audit-severity-label">
-              {severityFilters.map((filter) => {
-                const on = severity === filter.key
-                return (
-                  <button
-                    key={filter.key}
-                    type="button"
-                    className={on ? 'filter-chip is-on' : 'filter-chip'}
-                    aria-pressed={on}
-                    onClick={() => setSeverity(filter.key)}
-                  >
-                    {t(filter.label)}
-                    <span className="filter-chip-count">
-                      {filter.key === 'all'
-                        ? report.summary.total
-                        : report.summary[filter.key]}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+      {/* Where the findings fall, not how many there are - the four counts are
+          in the cards above and do not need saying twice. Left: the tables, in
+          words. Right: the same numbers as bars, which is the faster read when
+          you only want to know where the weight is. Both follow the filter, so
+          the panel and the list below it always describe the same findings. */}
+      <section className="panel audit-breakdown" aria-labelledby="audit-breakdown-heading">
+        <div className="panel-head">
+          <div className="panel-heading">
+            <h2 className="panel-title" id="audit-breakdown-heading">
+              {t('Findings by table')}
+            </h2>
+            <p className="panel-description">
+              {t(
+                'A finding can concern more than one table - a loop, or a column declared two ways - so these add up to more than the total.',
+              )}
+            </p>
           </div>
-
-          <label className="field search-field">
-            <span className="field-label">{t('Search findings')}</span>
-            <span className="search-control">
-              <span className="search-icon">
-                <SearchIcon size={15} />
-              </span>
-              <input
-                type="search"
-                className="input"
-                value={search}
-                placeholder={t('Rule, table, column or message')}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </span>
-          </label>
-        </div>
-
-        <div className="audit-toolbar-meta">
-          {/* What is on the screen right now, in words - a filtered audit that
-              only printed its own length would read as a cleaner schema. */}
-          <span className="audit-count" role="status" aria-live="polite">
-            {narrowed
-              ? t('{shown} of {total} findings', {
-                  shown: formatNumber(findings.length),
-                  total: formatNumber(total),
-                })
-              : t('{count} findings', { count: formatNumber(total) })}
-          </span>
           <button
             type="button"
             className="button button-sm"
@@ -555,9 +598,86 @@ export default function SchemaAudit() {
             {showRules ? t('Hide rules') : t('Show rules')}
           </button>
         </div>
-      </div>
 
-      {showRules ? <RuleCatalog onClose={() => setShowRules(false)} /> : null}
+        <div className="panel-body audit-breakdown-body">
+          {breakdown.length === 0 ? (
+            <p className="audit-table-empty">
+              {narrowed
+                ? t('No finding in this selection names a table.')
+                : t('No finding names a table.')}
+            </p>
+          ) : (
+            <div className="audit-breakdown-main">
+              <ul className="audit-table-list">
+                {breakdown.map((row) => (
+                  <li className="audit-table-row" key={row.table}>
+                    <span className="audit-table-name">{row.table}</span>
+                    <span className="audit-table-counts">
+                      {severities.map((level) =>
+                        row[level] > 0 ? (
+                          <span
+                            className={`audit-table-count audit-table-count-${level}`}
+                            key={level}
+                          >
+                            <span className="badge-dot" aria-hidden="true" />
+                            {formatNumber(row[level])}
+                            <span className="visually-hidden"> {t(level)}</span>
+                          </span>
+                        ) : null,
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="audit-breakdown-chart">
+                <ColumnChart
+                  data={breakdown.map((row) => ({
+                    label: row.table,
+                    value: row.total,
+                    hint: severities
+                      .filter((level) => row[level] > 0)
+                      .map((level) => `${formatNumber(row[level])} ${t(level)}`)
+                      .join(' · '),
+                  }))}
+                  formatValue={formatNumber}
+                  formatTick={(value) => formatNumber(Math.round(value))}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* The search and what it left on the screen, on one line under both
+              columns - a filtered audit that only printed its own length would
+              read as a cleaner schema. The placeholder says what can be typed,
+              so the box needs no label above it. */}
+          <div className="audit-breakdown-foot">
+            <span className="search-control">
+              <span className="search-icon">
+                <SearchIcon size={15} />
+              </span>
+              <input
+                type="search"
+                className="input"
+                value={search}
+                aria-label={t('Search findings')}
+                placeholder={t('Rule, table, column, severity or message')}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </span>
+            <span className="audit-count" role="status" aria-live="polite">
+              {narrowed
+                ? t('{shown} of {total} findings', {
+                    shown: formatNumber(findings.length),
+                    total: formatNumber(total),
+                  })
+                : t('{count} findings', { count: formatNumber(total) })}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {showRules ? <RuleCatalog /> : null}
 
       {findings.length === 0 ? (
         <div className="card">
@@ -565,7 +685,7 @@ export default function SchemaAudit() {
             title={narrowed ? t('No findings match') : t('Nothing to report')}
             text={
               narrowed
-                ? t('Nothing at this severity matches the current search.')
+                ? t('Nothing matches what is selected.')
                 : t('The audit ran and found nothing against these rules.')
             }
             actions={
@@ -578,7 +698,7 @@ export default function SchemaAudit() {
                     setSearch('')
                   }}
                 >
-                  {t('Clear search and filters')}
+                  {t('Clear the filter')}
                 </button>
               ) : null
             }
