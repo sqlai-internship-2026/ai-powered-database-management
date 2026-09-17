@@ -138,3 +138,9 @@ class Finding:
     rationale: str  # why this is worth changing
     confidence: str = "certain"  # certain | heuristic
     remediations: tuple[Remediation, ...] = ()
+    # The tables this finding concerns. target is not a reliable substitute:
+    # for R002/R003 it is a constraint name and for R010 a bare column name,
+    # and a cycle belongs to every table in it. A rule already knows the
+    # answer, so it writes it down rather than leaving the reader to parse it
+    # back out of a sentence.
+    tables: tuple[str, ...] = ()

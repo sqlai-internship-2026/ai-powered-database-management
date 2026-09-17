@@ -75,6 +75,7 @@ def missing_primary_key(schema: Schema) -> list[Finding]:
                 rule_name="Missing primary key",
                 severity=ERROR,
                 target=_q(schema, name),
+                tables=(name,),
                 message=f'Table "{name}" has no primary key.',
                 rationale=(
                     "Without a primary key there is no way to address a single "
@@ -164,6 +165,7 @@ def undefined_on_delete(schema: Schema) -> list[Finding]:
                 rule_name="Undefined ON DELETE behaviour",
                 severity=WARNING,
                 target=fk.name,
+                tables=(fk.table,),
                 message=f"{fk.label} falls back to ON DELETE NO ACTION.",
                 rationale=(
                     "The catalog cannot tell an omitted clause from an explicit "
@@ -189,6 +191,7 @@ def undefined_on_update(schema: Schema) -> list[Finding]:
                 rule_name="Undefined ON UPDATE behaviour",
                 severity=INFO,
                 target=fk.name,
+                tables=(fk.table,),
                 message=f"{fk.label} falls back to ON UPDATE NO ACTION.",
                 rationale=(
                     "Low priority while the referenced key is generated and "
@@ -233,6 +236,7 @@ def isolated_table(schema: Schema) -> list[Finding]:
                 rule_name="Isolated table",
                 severity=INFO,
                 target=_q(schema, name),
+                tables=(name,),
                 message=f'Table "{name}" has no foreign key in either direction.',
                 rationale=(
                     "Either it genuinely stands alone - a lookup list, an audit "
@@ -320,6 +324,7 @@ def circular_foreign_keys(schema: Schema) -> list[Finding]:
                 rule_name="Circular foreign key chain",
                 severity=ERROR,
                 target=", ".join(key),
+                tables=tuple(key),
                 message=f"Foreign keys form a loop: {path}.",
                 rationale=(
                     "Nothing in the loop can be inserted first, so the rows can "
@@ -392,6 +397,7 @@ def redundant_index(schema: Schema) -> list[Finding]:
                         rule_name="Duplicate index",
                         severity=WARNING,
                         target=f"{_q(schema, name)}.{extra.name}",
+                        tables=(name,),
                         message=(
                             f'"{extra.name}" indexes ({", ".join(columns)}), '
                             f'which "{keep.name}" already covers.'
@@ -438,6 +444,7 @@ def redundant_index(schema: Schema) -> list[Finding]:
                     rule_name="Redundant index prefix",
                     severity=INFO,
                     target=f"{_q(schema, name)}.{index.name}",
+                    tables=(name,),
                     message=(
                         f'"{index.name}" on ({", ".join(index.columns)}) is a '
                         f'leading subset of "{covering}".'
@@ -486,6 +493,7 @@ def foreign_key_type_mismatch(schema: Schema) -> list[Finding]:
                     rule_name="Foreign key type mismatch",
                     severity=ERROR,
                     target=f"{_q(schema, fk.table)}.{column_name}",
+                    tables=(fk.table,),
                     message=(
                         f"{fk.table}.{column_name} is {column.data_type} but "
                         f"{fk.target_table}.{target_name} is "
@@ -540,6 +548,7 @@ def unindexed_foreign_key(schema: Schema) -> list[Finding]:
                 rule_name="Unindexed foreign key",
                 severity=WARNING,
                 target=f"{_q(schema, fk.table)}.{columns}",
+                tables=(fk.table,),
                 message=f"No index starts with ({columns}) on {fk.table}.",
                 rationale=(
                     "PostgreSQL indexes the parent side of a foreign key but "
@@ -602,6 +611,7 @@ def implied_foreign_key(schema: Schema) -> list[Finding]:
                     rule_name="Implied relationship without a foreign key",
                     severity=WARNING,
                     target=f"{_q(schema, name)}.{column.name}",
+                    tables=(name,),
                     message=(
                         f'"{name}.{column.name}" looks like a reference to '
                         f'"{target}" but no foreign key enforces it.'
@@ -707,6 +717,9 @@ def inconsistent_column_type(schema: Schema) -> list[Finding]:
                 rule_name="Inconsistent type for a shared column name",
                 severity=INFO,
                 target=column_name,
+                tables=tuple(
+                    sorted({table for tables in variants.values() for table in tables})
+                ),
                 message=f'"{column_name}" is declared differently: {summary}.',
                 rationale=(
                     "Columns that mean the same thing should be declared the "
